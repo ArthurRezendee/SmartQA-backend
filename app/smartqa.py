@@ -6,12 +6,15 @@ app = typer.Typer(help="SmartQA CLI")
 
 BASE_MODULES = Path("app/modules")
 
+# =====================================================
 # Helpers
+# =====================================================
 def to_snake(name: str) -> str:
     return "".join(
         f"_{c.lower()}" if c.isupper() else c
         for c in name
     ).lstrip("_")
+
 
 def ensure_module(name: str) -> Path:
     module = BASE_MODULES / to_snake(name)
@@ -19,7 +22,10 @@ def ensure_module(name: str) -> Path:
     (module / "__init__.py").touch(exist_ok=True)
     return module
 
-# Comandos API
+
+# =====================================================
+# make:module
+# =====================================================
 @app.command("make:module")
 def make_module(module: str):
     """
@@ -46,6 +52,9 @@ from app.shared.controller import BaseController
 
 
 class {module}Controller(BaseController):
+
+    def __init__(self):
+        pass
 
     async def index(self):
         return {{
@@ -77,6 +86,9 @@ async def index():
     typer.echo(f"✅ Módulo '{module}' criado com sucesso")
 
 
+# =====================================================
+# make:controller
+# =====================================================
 @app.command("make:controller")
 def make_controller(module: str):
     base = ensure_module(module)
@@ -84,12 +96,17 @@ def make_controller(module: str):
 
     path.write_text(f"""
 class {module}Controller:
-    pass
+
+    def __init__(self):
+        pass
 """)
 
     typer.echo(f"✅ Controller criado em {path}")
 
 
+# =====================================================
+# make:service
+# =====================================================
 @app.command("make:service")
 def make_service(module: str):
     base = ensure_module(module)
@@ -97,12 +114,17 @@ def make_service(module: str):
 
     path.write_text(f"""
 class {module}Service:
-    pass
+
+    def __init__(self):
+        pass
 """)
 
     typer.echo(f"✅ Service criado em {path}")
 
 
+# =====================================================
+# make:model
+# =====================================================
 @app.command("make:model")
 def make_model(module: str):
     base = ensure_module(module)
@@ -111,6 +133,7 @@ def make_model(module: str):
     path.write_text(f"""
 from sqlalchemy import Column, Integer
 from app.core.base import Base
+
 
 class {module}(Base):
     __tablename__ = "{to_snake(module)}s"
@@ -121,6 +144,9 @@ class {module}(Base):
     typer.echo(f"✅ Model criado em {path}")
 
 
+# =====================================================
+# make:schema
+# =====================================================
 @app.command("make:schema")
 def make_schema(module: str):
     base = ensure_module(module)
@@ -129,8 +155,10 @@ def make_schema(module: str):
     path.write_text(f"""
 from pydantic import BaseModel
 
+
 class {module}Create(BaseModel):
     pass
+
 
 class {module}Response({module}Create):
     id: int
@@ -142,6 +170,9 @@ class {module}Response({module}Create):
     typer.echo(f"✅ Schema criado em {path}")
 
 
+# =====================================================
+# make:router
+# =====================================================
 @app.command("make:router")
 def make_router(module: str):
     base = ensure_module(module)
@@ -159,21 +190,211 @@ router = APIRouter(
     typer.echo(f"✅ Router criado em {path}")
 
 
+# =====================================================
+# make:crud
+# =====================================================
+@app.command("make:crud")
+def make_crud(
+    module: str,
+    entity: str,
+    from_model: bool = typer.Option(False, "--from-model"),
+    controller: str = typer.Option(None, "--controller"),
+    readonly: bool = typer.Option(False, "--readonly"),
+    no_delete: bool = typer.Option(False, "--no-delete"),
+):
+    """
+    Gera um CRUD completo para uma entidade dentro de um módulo
+    """
 
+    module_snake = to_snake(module)
+    entity_snake = to_snake(entity)
+
+    module_path = ensure_module(module)
+
+    model_path = module_path / "model" / f"{entity_snake}_model.py"
+    schema_path = module_path / "schemas" / f"{entity_snake}_schema.py"
+    service_path = module_path / "service" / f"{entity_snake}_service.py"
+
+    controller_name = controller or entity
+    controller_snake = to_snake(controller_name)
+    controller_path = module_path / "controller" / f"{controller_snake}_controller.py"
+
+    router_path = module_path / "router.py"
+
+    if not from_model and model_path.exists():
+        typer.echo("❌ Model já existe. Use --from-model se quiser reutilizar.")
+        raise typer.Exit(1)
+
+    for path in [schema_path, service_path]:
+        if path.exists():
+            typer.echo(f"❌ Arquivo já existe: {path}")
+            raise typer.Exit(1)
+
+    if not controller_path.exists():
+        typer.echo(f"❌ Controller alvo não existe: {controller_path}")
+        raise typer.Exit(1)
+
+    if not from_model:
+        model_path.write_text(f"""
+from sqlalchemy import Column, Integer, String
+from app.core.base import Base
+
+
+class {entity}(Base):
+    __tablename__ = "{entity_snake}s"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+""")
+
+    schema_path.write_text(f"""
+from pydantic import BaseModel
+
+
+class {entity}Base(BaseModel):
+    name: str
+
+
+class {entity}Create({entity}Base):
+    pass
+
+
+class {entity}Update({entity}Base):
+    pass
+
+
+class {entity}Response({entity}Base):
+    id: int
+
+    class Config:
+        from_attributes = True
+""")
+
+    service_path.write_text(f"""
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.modules.{module_snake}.model.{entity_snake}_model import {entity}
+
+
+class {entity}Service:
+
+    def __init__(self):
+        pass
+
+    async def list(self, db: AsyncSession):
+        result = await db.execute(select({entity}))
+        return result.scalars().all()
+
+    async def get(self, db: AsyncSession, entity_id: int):
+        result = await db.execute(
+            select({entity}).where({entity}.id == entity_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(self, db: AsyncSession, data: dict):
+        record = {entity}(**data)
+        db.add(record)
+        await db.commit()
+        await db.refresh(record)
+        return record
+
+    async def update(self, db: AsyncSession, entity_id: int, data: dict):
+        record = await self.get(db, entity_id)
+        if not record:
+            return None
+
+        for key, value in data.items():
+            setattr(record, key, value)
+
+        await db.commit()
+        await db.refresh(record)
+        return record
+
+    async def delete(self, db: AsyncSession, entity_id: int):
+        record = await self.get(db, entity_id)
+        if not record:
+            return None
+
+        await db.delete(record)
+        await db.commit()
+        return record
+""")
+
+    controller_code = f"""
+    async def list_{entity_snake}s(self, db):
+        return await self.service.list(db)
+
+    async def get_{entity_snake}(self, db, entity_id: int):
+        return await self.service.get(db, entity_id)
+
+    async def create_{entity_snake}(self, db, data):
+        return await self.service.create(db, data.dict())
+
+    async def update_{entity_snake}(self, db, entity_id: int, data):
+        return await self.service.update(db, entity_id, data.dict())
+"""
+
+    if not readonly:
+        controller_code += f"""
+    async def delete_{entity_snake}(self, db, entity_id: int):
+        return await self.service.delete(db, entity_id)
+"""
+
+    with open(controller_path, "a", encoding="utf-8") as f:
+        f.write(controller_code)
+
+    with open(router_path, "a", encoding="utf-8") as f:
+        f.write(f"""
+
+# {entity} CRUD
+@router.get("/{entity_snake}s")
+async def list_{entity_snake}s(db=Depends(get_db)):
+    return await controller.list_{entity_snake}s(db)
+
+@router.get("/{entity_snake}s/{{entity_id}}")
+async def get_{entity_snake}(entity_id: int, db=Depends(get_db)):
+    return await controller.get_{entity_snake}(db, entity_id)
+
+@router.post("/{entity_snake}s")
+async def create_{entity_snake}(data: {entity}Create, db=Depends(get_db)):
+    return await controller.create_{entity_snake}(db, data)
+
+@router.put("/{entity_snake}s/{{entity_id}}")
+async def update_{entity_snake}(entity_id: int, data: {entity}Update, db=Depends(get_db)):
+    return await controller.update_{entity_snake}(db, entity_id, data)
+""")
+
+        if not readonly and not no_delete:
+            f.write(f"""
+@router.delete("/{entity_snake}s/{{entity_id}}")
+async def delete_{entity_snake}(entity_id: int, db=Depends(get_db)):
+    return await controller.delete_{entity_snake}(db, entity_id)
+""")
+
+    typer.echo(f"✅ CRUD '{entity}' criado no módulo '{module}'")
+
+
+# =====================================================
 # Database
+# =====================================================
 @app.command("make:migration")
 def make_migration(message: str):
     subprocess.run(["alembic", "revision", "--autogenerate", "-m", message])
 
+
 @app.command("db:migrate")
 def db_migrate():
     subprocess.run(["alembic", "upgrade", "head"])
+
 
 @app.command("db:rollback")
 def db_rollback():
     subprocess.run(["alembic", "downgrade", "-1"])
 
 
+# =====================================================
+# App
+# =====================================================
 @app.command("app:run")
 def app_run():
     subprocess.run([
@@ -181,4 +402,3 @@ def app_run():
         "app.main:app",
         "--reload"
     ])
-
