@@ -1,0 +1,15 @@
+[project]
+name = "smartqa"
+version = "0.1.0"
+dependencies = [
+    "fastapi",
+    "typer",
+    "sqlalchemy",
+    "alembic",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[project.scripts]
+smartqa = "app.smartqa:app"
