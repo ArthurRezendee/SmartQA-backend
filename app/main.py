@@ -1,6 +1,10 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
 from app.core.config import settings
 from app.modules.user.router import router as user_router
+from app.modules.auth.router import router as auth_router
+
+load_dotenv()
 
 app = FastAPI(
     title="SmartQA API",  
@@ -9,3 +13,4 @@ app = FastAPI(
 )
 
 app.include_router(user_router)
+app.include_router(auth_router)
