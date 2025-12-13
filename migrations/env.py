@@ -14,6 +14,9 @@ from app.core.base import Base
 
 # IMPORTAR MODELS AQUI
 from app.modules.user.model.user_model import User
+from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
+from app.modules.qa_analysis.model.qa_document_model import QaDocument
+
 
 config = context.config
 

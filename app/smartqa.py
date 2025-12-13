@@ -215,12 +215,18 @@ def make_crud(
     schema_path = module_path / "schemas" / f"{entity_snake}_schema.py"
     service_path = module_path / "service" / f"{entity_snake}_service.py"
 
+    # -------------------------------------
+    # CONTROLLER RESOLUTION (CORRIGIDO)
+    # -------------------------------------
     controller_name = controller or entity
     controller_snake = to_snake(controller_name)
     controller_path = module_path / "controller" / f"{controller_snake}_controller.py"
 
     router_path = module_path / "router.py"
 
+    # -------------------------------------
+    # VALIDATIONS
+    # -------------------------------------
     if not from_model and model_path.exists():
         typer.echo("❌ Model já existe. Use --from-model se quiser reutilizar.")
         raise typer.Exit(1)
@@ -230,10 +236,25 @@ def make_crud(
             typer.echo(f"❌ Arquivo já existe: {path}")
             raise typer.Exit(1)
 
+    # -------------------------------------
+    # CREATE CONTROLLER IF NOT EXISTS ✅
+    # -------------------------------------
     if not controller_path.exists():
-        typer.echo(f"❌ Controller alvo não existe: {controller_path}")
-        raise typer.Exit(1)
+        controller_path.write_text(f"""
+from app.shared.controller import BaseController
+from app.modules.{module_snake}.service.{entity_snake}_service import {entity}Service
 
+
+class {controller_name}Controller(BaseController):
+
+    def __init__(self):
+        self.service = {entity}Service()
+""")
+        typer.echo(f"ℹ Controller '{controller_name}Controller' criado automaticamente")
+
+    # -------------------------------------
+    # MODEL
+    # -------------------------------------
     if not from_model:
         model_path.write_text(f"""
 from sqlalchemy import Column, Integer, String
@@ -247,6 +268,9 @@ class {entity}(Base):
     name = Column(String, nullable=False)
 """)
 
+    # -------------------------------------
+    # SCHEMA
+    # -------------------------------------
     schema_path.write_text(f"""
 from pydantic import BaseModel
 
@@ -270,6 +294,9 @@ class {entity}Response({entity}Base):
         from_attributes = True
 """)
 
+    # -------------------------------------
+    # SERVICE
+    # -------------------------------------
     service_path.write_text(f"""
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -320,6 +347,9 @@ class {entity}Service:
         return record
 """)
 
+    # -------------------------------------
+    # CONTROLLER METHODS (APPEND)
+    # -------------------------------------
     controller_code = f"""
     async def list_{entity_snake}s(self, db):
         return await self.service.list(db)
@@ -343,6 +373,9 @@ class {entity}Service:
     with open(controller_path, "a", encoding="utf-8") as f:
         f.write(controller_code)
 
+    # -------------------------------------
+    # ROUTER
+    # -------------------------------------
     with open(router_path, "a", encoding="utf-8") as f:
         f.write(f"""
 
