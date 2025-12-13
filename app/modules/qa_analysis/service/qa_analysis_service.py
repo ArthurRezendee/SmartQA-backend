@@ -1,48 +1,73 @@
-
+import os
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+
 from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
+from app.modules.qa_analysis.model.qa_document_model import QaDocument
+from app.modules.user.model.user_model import User 
+
+
+BASE_PATH = "storage/qa_analyses"
+ALLOWED_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "text/markdown"
+}
 
 
 class QaAnalysisService:
 
-    def __init__(self):
-        pass
-
-    async def list(self, db: AsyncSession):
-        result = await db.execute(select(QaAnalysis))
-        return result.scalars().all()
-
-    async def get(self, db: AsyncSession, entity_id: int):
-        result = await db.execute(
-            select(QaAnalysis).where(QaAnalysis.id == entity_id)
+    async def create_with_documents(
+        self,
+        db: AsyncSession,
+        data: dict,
+        documents: list
+    ):
+        # 🔹 valida user_id antes de tudo
+        user = await db.execute(
+            select(User).where(User.id == data["user_id"])
         )
-        return result.scalar_one_or_none()
+        if not user.scalar_one_or_none():
+            raise ValueError("Usuário não encontrado")
 
-    async def create(self, db: AsyncSession, data: dict):
-        record = QaAnalysis(**data)
-        db.add(record)
-        await db.commit()
-        await db.refresh(record)
-        return record
+        analysis = QaAnalysis(**data)
+        db.add(analysis)
 
-    async def update(self, db: AsyncSession, entity_id: int, data: dict):
-        record = await self.get(db, entity_id)
-        if not record:
-            return None
+        try:
+            await db.flush()  # pode quebrar FK, unique, etc
+        except IntegrityError as e:
+            await db.rollback()
+            raise ValueError("Erro de integridade ao criar análise") from e
 
-        for key, value in data.items():
-            setattr(record, key, value)
+        # 📁 cria pasta
+        folder = os.path.join(BASE_PATH, str(analysis.id))
+        os.makedirs(folder, exist_ok=True)
 
-        await db.commit()
-        await db.refresh(record)
-        return record
+        try:
+            for file in documents:
+                if file.content_type not in ALLOWED_TYPES:
+                    raise ValueError(f"Tipo de arquivo não permitido: {file.content_type}")
 
-    async def delete(self, db: AsyncSession, entity_id: int):
-        record = await self.get(db, entity_id)
-        if not record:
-            return None
+                ext = os.path.splitext(file.filename)[1]
+                filename = f"{uuid.uuid4()}{ext}"
+                path = os.path.join(folder, filename)
 
-        await db.delete(record)
-        await db.commit()
-        return record
+                with open(path, "wb") as f:
+                    f.write(await file.read())
+
+                db.add(QaDocument(
+                    qa_analysis_id=analysis.id,
+                    type=file.content_type,
+                    path=path
+                ))
+
+            await db.commit()
+
+        except Exception as e:
+            await db.rollback()
+            raise ValueError(str(e))
+
+        await db.refresh(analysis)
+        return analysis

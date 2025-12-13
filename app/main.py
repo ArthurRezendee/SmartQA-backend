@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from app.core.config import settings
-from app.modules.user.router import router as user_router
+from app.modules.qa_analysis.router import router as qa_analysis_router
 from app.modules.auth.router import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,5 +21,5 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
-app.include_router(user_router)
+app.include_router(qa_analysis_router)
 app.include_router(auth_router)

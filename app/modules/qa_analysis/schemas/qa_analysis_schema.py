@@ -1,21 +1,26 @@
+from pydantic import BaseModel, HttpUrl
 
-from pydantic import BaseModel
 
-
-class QaAnalysisBase(BaseModel):
+class QaAnalysisCreate(BaseModel):
     name: str
+    user_id: int
+    target_url: HttpUrl
+    description: str | None = None
 
 
-class QaAnalysisCreate(QaAnalysisBase):
-    pass
+class QaAnalysisUpdate(BaseModel):
+    name: str | None = None
+    target_url: HttpUrl | None = None
+    description: str | None = None
+    status: str | None = None
 
 
-class QaAnalysisUpdate(QaAnalysisBase):
-    pass
-
-
-class QaAnalysisResponse(QaAnalysisBase):
+class QaAnalysisResponse(BaseModel):
     id: int
+    name: str
+    target_url: str
+    description: str | None
+    status: str
 
     class Config:
         from_attributes = True
