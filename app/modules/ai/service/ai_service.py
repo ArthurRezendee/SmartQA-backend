@@ -29,6 +29,7 @@ class AiService:
                 Acesse a URL {analysis["target_url"]}.
                 Caso exista autenticação, utilize as credenciais fornecidas.
                 Descreva detalhadamente a interface visível após o carregamento.
+                Me retorne somente a descrição, de forma direta e detalhada, sem mais nenhum texto.
                 """,
                 llm="browser-use-llm"
             )
