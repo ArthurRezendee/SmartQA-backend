@@ -1,0 +1,11 @@
+from app.shared.controller import BaseController
+from app.modules.ai.service.ai_service import AiService
+
+
+class AiController(BaseController):
+
+    def __init__(self):
+        self.service = AiService()
+
+    async def generate_test_cases(self, db, analysis_id: int, user_id: int):
+        return await self.service.generate_test_cases(db, analysis_id, user_id)

@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.modules.qa_analysis.router import router as qa_analysis_router
 from app.modules.auth.router import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
+from app.modules.ai.router import router as ai_router
 
 load_dotenv()
 
@@ -23,3 +24,4 @@ app.add_middleware(
 
 app.include_router(qa_analysis_router)
 app.include_router(auth_router)
+app.include_router(ai_router)
