@@ -45,4 +45,6 @@ class AuthController(BaseController):
                 "token": token
             })
         except Exception as e:
-            return error("Falha no login Google")
+            print("❌ Google login error:", e)
+            raise
+
