@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from typing import List
+import json
+
 from app.core.database import get_db
 from app.core.dependencies import get_current_user_id
 from app.modules.qa_analysis.controller.qa_analysis_controller import QaAnalysisController
@@ -35,11 +37,20 @@ async def create_qa_analysis(
     name: str = Form(...),
     target_url: str = Form(...),
     description: str | None = Form(None),
+    access_credentials: str | None = Form(None),
     documents: List[UploadFile] = File(default=[]),
     user_id: int = Depends(get_current_user_id),
     db=Depends(get_db)
 ):
     try:
+        credentials_list = None
+
+        if access_credentials:
+            credentials_list = json.loads(access_credentials)
+
+            if not isinstance(credentials_list, list):
+                raise ValueError("access_credentials deve ser uma lista")
+
         return await controller.create_qa_analysis(
             db=db,
             data={
@@ -48,8 +59,10 @@ async def create_qa_analysis(
                 "target_url": target_url,
                 "description": description
             },
-            documents=documents
+            documents=documents,
+            access_credentials=credentials_list
         )
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
