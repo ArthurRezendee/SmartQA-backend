@@ -39,5 +39,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  flower:
+    image: mher/flower
+    command: celery --broker=redis://redis:6379/0 flower
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+
 volumes:
   pgdata:

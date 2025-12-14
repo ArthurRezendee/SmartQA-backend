@@ -418,6 +418,71 @@ async def delete_{entity_snake}(entity_id: int, db=Depends(get_db)):
     typer.echo(f"✅ CRUD '{entity}' criado no módulo '{module}'")
 
 
+@app.command("make:job")
+def make_job(group: str, name: str):
+    """
+    Cria um job Celery padronizado e registra no app/jobs/__init__.py
+    """
+
+    jobs_base = Path("app/jobs")
+    group_snake = to_snake(group)
+    job_snake = to_snake(name)
+
+    jobs_base.mkdir(parents=True, exist_ok=True)
+
+    # registry principal
+    main_init = jobs_base / "__init__.py"
+    if not main_init.exists():
+        main_init.write_text("# jobs registry (auto-generated)\n")
+
+    # pasta do grupo
+    group_path = jobs_base / group_snake
+    group_path.mkdir(parents=True, exist_ok=True)
+
+    # opcional, mas ok manter
+    (group_path / "__init__.py").touch(exist_ok=True)
+
+    # arquivo do job
+    job_path = group_path / f"{job_snake}.py"
+    if job_path.exists():
+        typer.echo(f"❌ Job já existe: {job_path}")
+        raise typer.Exit(1)
+
+    job_path.write_text(f'''
+from app.core.celery_app import celery_app
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@celery_app.task(
+    name="jobs.{group_snake}.{job_snake}",
+    autoretry_for=(Exception,),
+    retry_kwargs={{"max_retries": 3, "countdown": 10}},
+)
+def {job_snake}(*args, **kwargs):
+    logger.info("🚀 Job {name} iniciado", extra={{
+        "args": args,
+        "kwargs": kwargs
+    }})
+
+    # TODO: implementar lógica do job
+
+    logger.info("✅ Job {name} finalizado")
+'''.lstrip())
+
+    # registra import no app/jobs/__init__.py
+    import_line = f"\nimport app.jobs.{group_snake}.{job_snake}"
+    current = main_init.read_text(encoding="utf-8")
+
+    if import_line not in current:
+        with open(main_init, "a", encoding="utf-8") as f:
+            f.write(import_line)
+
+    typer.echo(f"✅ Job '{name}' criado em {job_path} e registrado em app/jobs/__init__.py")
+
+
+
 # =====================================================
 # Database
 # =====================================================
