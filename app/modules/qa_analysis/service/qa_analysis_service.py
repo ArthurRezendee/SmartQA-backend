@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
 from app.modules.qa_analysis.model.qa_document_model import QaDocument
-from app.modules.user.model.user_model import User 
+from app.modules.user.model.user_model import User
 
 
 BASE_PATH = "storage/qa_analyses"
@@ -19,13 +19,33 @@ ALLOWED_TYPES = {
 
 class QaAnalysisService:
 
+    async def list_by_user(self, db: AsyncSession, user_id: int):
+        result = await db.execute(
+            select(QaAnalysis).where(QaAnalysis.user_id == user_id)
+        )
+        return result.scalars().all()
+
+    async def get_or_fail(self, db: AsyncSession, entity_id: int, user_id: int):
+        result = await db.execute(
+            select(QaAnalysis).where(
+                QaAnalysis.id == entity_id,
+                QaAnalysis.user_id == user_id
+            )
+        )
+        record = result.scalar_one_or_none()
+
+        if not record:
+            raise ValueError("Análise não encontrada")
+
+        return record
+
     async def create_with_documents(
         self,
         db: AsyncSession,
         data: dict,
         documents: list
     ):
-        # 🔹 valida user_id antes de tudo
+        # 🔒 valida usuário
         user = await db.execute(
             select(User).where(User.id == data["user_id"])
         )
@@ -36,19 +56,18 @@ class QaAnalysisService:
         db.add(analysis)
 
         try:
-            await db.flush()  # pode quebrar FK, unique, etc
-        except IntegrityError as e:
+            await db.flush()
+        except IntegrityError:
             await db.rollback()
-            raise ValueError("Erro de integridade ao criar análise") from e
+            raise ValueError("Erro ao criar análise")
 
-        # 📁 cria pasta
         folder = os.path.join(BASE_PATH, str(analysis.id))
         os.makedirs(folder, exist_ok=True)
 
         try:
             for file in documents:
                 if file.content_type not in ALLOWED_TYPES:
-                    raise ValueError(f"Tipo de arquivo não permitido: {file.content_type}")
+                    raise ValueError(f"Tipo não permitido: {file.content_type}")
 
                 ext = os.path.splitext(file.filename)[1]
                 filename = f"{uuid.uuid4()}{ext}"
@@ -71,3 +90,18 @@ class QaAnalysisService:
 
         await db.refresh(analysis)
         return analysis
+
+    async def update(self, db, entity_id: int, data: dict, user_id: int):
+        record = await self.get_or_fail(db, entity_id, user_id)
+
+        for key, value in data.items():
+            setattr(record, key, value)
+
+        await db.commit()
+        await db.refresh(record)
+        return record
+
+    async def delete(self, db, entity_id: int, user_id: int):
+        record = await self.get_or_fail(db, entity_id, user_id)
+        await db.delete(record)
+        await db.commit()

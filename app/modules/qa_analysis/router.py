@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from typing import List
 from app.core.database import get_db
+from app.core.dependencies import get_current_user_id
 from app.modules.qa_analysis.controller.qa_analysis_controller import QaAnalysisController
-from app.modules.qa_analysis.schemas.qa_analysis_schema import QaAnalysisCreate, QaAnalysisUpdate
+from app.modules.qa_analysis.schemas.qa_analysis_schema import QaAnalysisUpdate
 
 router = APIRouter(
     prefix="/qa_analysis",
@@ -13,22 +14,29 @@ controller = QaAnalysisController()
 
 
 @router.get("/")
-async def list_qa_analysis(db=Depends(get_db)):
-    return await controller.list_qa_analysis(db)
+async def list_qa_analysis(
+    user_id: int = Depends(get_current_user_id),
+    db=Depends(get_db)
+):
+    return await controller.list_qa_analysis(db, user_id)
 
 
 @router.get("/{entity_id}")
-async def get_qa_analysis(entity_id: int, db=Depends(get_db)):
-    return await controller.get_qa_analysis(db, entity_id)
+async def get_qa_analysis(
+    entity_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db=Depends(get_db)
+):
+    return await controller.get_qa_analysis(db, entity_id, user_id)
 
 
 @router.post("/", status_code=201)
 async def create_qa_analysis(
     name: str = Form(...),
-    user_id: int = Form(...),
     target_url: str = Form(...),
     description: str | None = Form(None),
     documents: List[UploadFile] = File(default=[]),
+    user_id: int = Depends(get_current_user_id),
     db=Depends(get_db)
 ):
     try:
@@ -50,11 +58,16 @@ async def create_qa_analysis(
 async def update_qa_analysis(
     entity_id: int,
     data: QaAnalysisUpdate,
+    user_id: int = Depends(get_current_user_id),
     db=Depends(get_db)
 ):
-    return await controller.update_qa_analysis(db, entity_id, data)
+    return await controller.update_qa_analysis(db, entity_id, data, user_id)
 
 
 @router.delete("/{entity_id}", status_code=204)
-async def delete_qa_analysis(entity_id: int, db=Depends(get_db)):
-    await controller.delete_qa_analysis(db, entity_id)
+async def delete_qa_analysis(
+    entity_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db=Depends(get_db)
+):
+    await controller.delete_qa_analysis(db, entity_id, user_id)
