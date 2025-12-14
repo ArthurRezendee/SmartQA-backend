@@ -89,7 +89,8 @@ class QaAnalysisService:
                 "access_credentials": [
                     {
                         "id": cred.id,
-                        "field_name": cred.field_name
+                        "field_name": cred.field_name,
+                        "value": cred.value
                     } for cred in analysis.access_credentials
                 ]
             }

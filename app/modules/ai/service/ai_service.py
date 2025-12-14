@@ -1,6 +1,7 @@
 import os
-from browser_use_sdk import BrowserUse
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from browser_use import Agent, Browser, ChatBrowserUse
 
 from app.modules.qa_analysis.service.qa_analysis_service import QaAnalysisService
 from app.modules.ai.utils.ai_utils import AiUtils
@@ -9,7 +10,11 @@ from app.modules.ai.utils.ai_utils import AiUtils
 class AiService:
 
     def __init__(self):
-        self.client = BrowserUse(api_key=os.getenv("BROWSER_USE_API_KEY"))
+        self.browser = Browser(
+            headless=True
+        )
+
+        self.llm = ChatBrowserUse()
 
     async def generate_test_cases(
         self,
@@ -22,26 +27,54 @@ class AiService:
 
             analysis = await qa_service.get_or_fail(db, analysis_id, user_id)
 
-            browser = BrowserUse(api_key=os.getenv("BROWSER_USE_API_KEY"))
+            credentials_block = ""
 
-            task = browser.tasks.create_task(
-                task=f"""
-                Acesse a URL {analysis["target_url"]}.
-                Caso exista autenticação, utilize as credenciais fornecidas.
-                Descreva detalhadamente a interface visível após o carregamento.
-                Me retorne somente a descrição, de forma direta e detalhada, sem mais nenhum texto.
-                """,
-                llm="browser-use-llm"
+            access_credentials = analysis.get("access_credentials") or []
+
+            if access_credentials:
+                credentials_block = "Realize o login seguindo exatamente os passos abaixo:\n"
+
+                for cred in access_credentials:
+                    credentials_block += (
+                        f'- Preencha o campo "{cred["field_name"]}" '
+                        f'com o valor "{cred["value"]}".\n'
+                    )
+            else:
+                credentials_block = (
+                    "Caso a tela não exija autenticação, apenas acesse a página normalmente.\n"
+                )
+
+            task = f"""
+Acesse a URL abaixo:
+{analysis["target_url"]}
+
+{credentials_block}
+
+Após o carregamento completo da página:
+- Observe apenas o que está visível para o usuário
+- Não execute ações adicionais além do login (se houver)
+
+Descreva detalhadamente a interface exibida na tela.
+Retorne SOMENTE a descrição da interface, sem textos adicionais.
+"""
+
+            agent = Agent(
+                task=task,
+                browser=self.browser,
+                llm=self.llm
             )
 
-            result = task.complete()
+            history = await agent.run()
 
-            if not result or not result.output:
+            if not history or not history[-1].output:
                 raise ValueError("Não foi possível obter descrição da interface")
 
-            ui_description = result.output
+            ui_description = history[-1].output.strip()
 
-            prompt = AiUtils.build_test_case_prompt(ui_description)
+            prompt = AiUtils.build_test_case_prompt(
+                ui_description=ui_description,
+                analysis=analysis
+            )
 
             return {
                 "analysis_id": analysis_id,
