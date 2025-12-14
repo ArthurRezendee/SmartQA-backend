@@ -16,6 +16,7 @@ from app.core.base import Base
 from app.modules.user.model.user_model import User
 from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
 from app.modules.qa_analysis.model.qa_document_model import QaDocument
+from app.modules.qa_analysis.model.access_credential_model import AccessCredential
 
 
 config = context.config

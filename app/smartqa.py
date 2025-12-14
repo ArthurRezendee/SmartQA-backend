@@ -126,22 +126,33 @@ class {module}Service:
 # make:model
 # =====================================================
 @app.command("make:model")
-def make_model(module: str):
+def make_model(module: str, model: str):
+    """
+    Cria um model dentro de um módulo existente
+    """
+
+    module_snake = to_snake(module)
+    model_snake = to_snake(model)
+
     base = ensure_module(module)
-    path = base / "model" / f"{to_snake(module)}_model.py"
+    path = base / "model" / f"{model_snake}_model.py"
+
+    if path.exists():
+        typer.echo(f"❌ Model já existe: {path}")
+        raise typer.Exit(1)
 
     path.write_text(f"""
 from sqlalchemy import Column, Integer
 from app.core.base import Base
 
 
-class {module}(Base):
-    __tablename__ = "{to_snake(module)}s"
+class {model}(Base):
+    __tablename__ = "{model_snake}s"
 
     id = Column(Integer, primary_key=True)
 """)
 
-    typer.echo(f"✅ Model criado em {path}")
+    typer.echo(f"✅ Model '{model}' criado em {path}")
 
 
 # =====================================================
