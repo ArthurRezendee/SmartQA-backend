@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.core.database import get_db
+from app.core.database.async_db import get_db
 from app.modules.auth.controller.auth_controller import AuthController
 from app.modules.auth.schemas.auth_schema import (
     RegisterSchema,

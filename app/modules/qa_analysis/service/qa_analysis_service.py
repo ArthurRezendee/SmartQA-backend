@@ -97,6 +97,45 @@ class QaAnalysisService:
 
         except Exception as e:
             raise ValueError(str(e))
+    
+    def get_or_fail_sync(self, db, entity_id: int, user_id: int):
+        try:
+            analysis = (
+                db.query(QaAnalysis)
+                .options(
+                    selectinload(QaAnalysis.documents),
+                    selectinload(QaAnalysis.access_credentials)
+                )
+                .filter(
+                    QaAnalysis.id == entity_id,
+                    QaAnalysis.user_id == user_id
+                )
+                .first()
+            )
+
+            if not analysis:
+                raise ValueError("Análise não encontrada")
+
+            return {
+                **analysis.to_dict(),
+                "documents": [
+                    {
+                        "id": doc.id,
+                        "type": doc.type,
+                        "path": doc.path
+                    } for doc in analysis.documents
+                ],
+                "access_credentials": [
+                    {
+                        "id": cred.id,
+                        "field_name": cred.field_name,
+                        "value": cred.value
+                    } for cred in analysis.access_credentials
+                ]
+            }
+
+        except Exception as e:
+            raise ValueError(str(e))
 
     async def create_with_documents(
         self,

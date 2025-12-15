@@ -7,5 +7,8 @@ class AiController(BaseController):
     def __init__(self):
         self.service = AiService()
 
-    async def generate_test_cases(self, db, analysis_id: int, user_id: int):
-        return await self.service.generate_test_cases(db, analysis_id, user_id)
+    async def generate_test_cases(self, analysis_id: int, user_id: int):
+        return await self.service.generate_test_cases(
+            analysis_id=analysis_id,
+            user_id=user_id
+        )

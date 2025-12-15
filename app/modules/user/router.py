@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, Depends
 from app.modules.user.controller.user_controller import UserController
-from app.core.database import get_db
+from app.core.database.async_db import get_db
 from app.modules.user.schemas.user_schema import UserCreate, UserUpdate
 
 router = APIRouter(

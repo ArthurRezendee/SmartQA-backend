@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from typing import List
 import json
 
-from app.core.database import get_db
+from app.core.database.async_db import get_db
 from app.core.dependencies import get_current_user_id
 from app.modules.qa_analysis.controller.qa_analysis_controller import QaAnalysisController
 from app.modules.qa_analysis.schemas.qa_analysis_schema import QaAnalysisUpdate
