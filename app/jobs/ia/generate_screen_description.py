@@ -54,10 +54,10 @@ Acesse a URL abaixo:
 {credentials_block}
 
 Após o carregamento completo da página:
-- Observe apenas o que está visível para o usuário
-- Não execute ações adicionais além do login (se houver)
+- explore a tela: abas, modais, etc. Desde que não saia da tela para outra URL.
 
-Descreva detalhadamente a interface exibida na tela.
+Descreva detalhadamente a interface explorada da tela. Essa descrição é para um agente responsável pela geração de casos de teste dessa tela.
+Então se atente nos detalhes na sua exploração.
 Retorne SOMENTE a descrição da interface, sem textos adicionais.
 """.strip()
 
