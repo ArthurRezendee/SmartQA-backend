@@ -1,0 +1,18 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<p>Olá <strong>{{ user_name }}</strong>,</p>
+
+<p>
+  Seja bem-vindo ao <strong>SmartQA</strong> 🚀  
+  Para finalizar seu cadastro, confirme seu e-mail clicando no botão abaixo.
+</p>
+
+<a href="{{ confirmation_url }}" class="button">
+  Confirmar e-mail
+</a>
+
+<p style="margin-top: 32px;">
+  Se você não criou essa conta, pode ignorar este e-mail com segurança.
+</p>
+{% endblock %}

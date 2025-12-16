@@ -3,6 +3,7 @@ from sqlalchemy import select
 from app.modules.user.model.user_model import User
 from app.core.security import hash_password, verify_password, create_access_token
 from app.modules.auth.providers.google import verify_google_token
+from app.jobs.user.send_confirmation_email import send_confirmation_email
 
 
 class AuthService:
@@ -21,6 +22,8 @@ class AuthService:
         db.add(user)
         await db.commit()
         await db.refresh(user)
+        
+        send_confirmation_email.delay(user.id)
 
         token = create_access_token({"sub": str(user.id)})
         return user, token
