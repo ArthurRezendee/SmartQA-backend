@@ -12,6 +12,7 @@ class QaAnalysisUpdate(BaseModel):
     name: str | None = None
     target_url: HttpUrl | None = None
     description: str | None = None
+    screen_context: str | None = None
     status: str | None = None
 
 
