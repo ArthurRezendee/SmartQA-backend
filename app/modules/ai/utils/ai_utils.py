@@ -3,9 +3,10 @@ class AiUtils:
     @staticmethod
     def build_test_case_prompt(ui_description: str, analysis: dict) -> str:
         return f"""
-Você é um QA Sênior especialista em testes funcionais de sistemas web.
+Você é um QA Sênior altamente experiente, especializado em testes funcionais,
+regressão e prevenção de bugs críticos em sistemas web.
 
-Você está trabalhando em uma análise de QA com o seguinte contexto:
+Você está executando uma ANÁLISE DE QA com o seguinte contexto:
 
 Nome da análise:
 "{analysis.get("name")}"
@@ -13,43 +14,104 @@ Nome da análise:
 URL do sistema:
 {analysis.get("target_url")}
 
-Objetivo da análise (descrição fornecida pelo QA):
+Objetivo da análise (fornecido pelo QA):
 "{analysis.get("description")}"
 
-Sua tarefa é gerar CASOS DE TESTE FUNCIONAIS com base:
-- No objetivo da análise
-- E EXCLUSIVAMENTE nos elementos e comportamentos descritos na interface analisada
+Contexto adicional da tela:
+"{analysis.get("screen_context")}"
 
-⚠️ Regras obrigatórias:
-- NÃO invente funcionalidades que não apareçam na descrição da interface
-- Priorize casos de teste diretamente relacionados ao objetivo da análise
-- Gere casos de teste claros, objetivos e realistas
-- Inclua casos positivos e negativos
-- Pense como um QA que quer prevenir bugs críticos
-- Os casos devem ser facilmente revisáveis por um humano
-- NÃO escreva textos explicativos fora do formato solicitado
+==================================================
+TAREFA PRINCIPAL
+==================================================
 
-Formato de saída:
-- Retorne APENAS um JSON válido
-- Não inclua comentários, textos extras ou markdown
+Gerar o MAIOR NÚMERO POSSÍVEL de CASOS DE TESTE FUNCIONAIS
+com base EXCLUSIVAMENTE na interface analisada.
 
-Formato do JSON esperado:
+Os testes devem cobrir:
+- Fluxos principais da tela
+- Variações válidas e inválidas de uso
+- Estados alternativos da interface
+- Erros comuns de usuário
+- Situações limite (edge cases)
+- Regressões prováveis
+- Comportamentos que podem gerar bugs críticos
+
+==================================================
+REGRAS OBRIGATÓRIAS
+==================================================
+
+1. NÃO invente funcionalidades que não estejam descritas na interface
+2. NÃO assuma integrações externas não mencionadas
+3. NÃO descreva testes genéricos ou repetidos
+4. NÃO explique o que está fazendo
+5. NÃO utilize markdown ou texto fora do JSON
+6. Cada caso de teste deve validar UM objetivo claro
+7. Cada passo deve representar UMA ação do usuário ou UMA verificação clara
+8. Pense como um QA experiente tentando QUEBRAR o sistema
+
+==================================================
+DIVERSIDADE DE TESTES (OBRIGATÓRIO)
+==================================================
+
+Distribua os testes entre os seguintes tipos, quando aplicável:
+
+- functional
+- regression
+- smoke
+- exploratory
+
+Distribua os cenários entre:
+
+- positive
+- negative
+- edge
+
+Use prioridade e risco de forma REALISTA:
+- critical → falha bloqueia uso da tela
+- high → falha grave, mas com workaround
+- medium → impacto parcial
+- low → impacto visual ou secundário
+
+==================================================
+FORMATO DE SAÍDA (OBRIGATÓRIO)
+==================================================
+
+Retorne APENAS um JSON válido no formato abaixo.
+Não inclua comentários, explicações ou texto extra.
 
 [
   {{
-    "title": "Título claro e objetivo do caso de teste",
+    "title": "Título curto, claro e objetivo",
+    "description": "Descrição do cenário validado pelo teste",
+    "objective": "O que este teste garante no sistema",
+
+    "test_type": "functional | regression | smoke | exploratory",
+    "scenario_type": "positive | negative | edge",
+    "priority": "low | medium | high | critical",
+    "risk_level": "low | medium | high",
+
     "preconditions": "Condições necessárias antes da execução",
+    "expected_result": "Resultado esperado ao final do cenário",
+
     "steps": [
-      "Passo 1",
-      "Passo 2",
-      "Passo 3"
-    ],
-    "expected_result": "Resultado esperado ao final do teste",
-    "type": "positive | negative"
+      {{
+        "order": 1,
+        "action": "Ação realizada pelo usuário",
+        "expected_result": "Resultado esperado após a ação"
+      }},
+      {{
+        "order": 2,
+        "action": "Ação realizada pelo usuário",
+        "expected_result": "Resultado esperado após a ação"
+      }}
+    ]
   }}
 ]
 
-Descrição da interface analisada:
+==================================================
+DESCRIÇÃO DA INTERFACE ANALISADA
+==================================================
+
 \"\"\"
 {ui_description}
 \"\"\"

@@ -5,6 +5,7 @@ from app.modules.qa_analysis.router import router as qa_analysis_router
 from app.modules.auth.router import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.modules.ai.router import router as ai_router
+import app.core.database.models
 
 load_dotenv()
 

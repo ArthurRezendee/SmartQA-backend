@@ -124,3 +124,5 @@ class TestCase(Base):
         cascade="all, delete-orphan",
         order_by="TestCaseStep.order",
     )
+
+    analysis = relationship("QaAnalysis", back_populates="test_cases")

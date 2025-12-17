@@ -2,7 +2,7 @@ import logging
 import asyncio
 
 from browser_use import Agent, Browser, ChatBrowserUse
-
+import app.core.database.models
 from app.core.celery_app import celery_app
 from app.modules.qa_analysis.service.qa_analysis_service import QaAnalysisService
 from app.modules.ai.utils.ai_utils import AiUtils

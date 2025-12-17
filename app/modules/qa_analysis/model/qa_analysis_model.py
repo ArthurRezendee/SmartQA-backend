@@ -2,7 +2,6 @@ from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 
-
 class QaAnalysis(Base):
     __tablename__ = "qa_analyses"
 
