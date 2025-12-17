@@ -21,6 +21,7 @@ class QaAnalysisResponse(BaseModel):
     name: str
     target_url: str
     description: str | None
+    screen_context: str | None
     status: str
 
     class Config:
