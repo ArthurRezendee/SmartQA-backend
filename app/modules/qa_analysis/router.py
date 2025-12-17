@@ -37,6 +37,7 @@ async def create_qa_analysis(
     name: str = Form(...),
     target_url: str = Form(...),
     description: str | None = Form(None),
+    screen_context: str | None = Form(None),
     access_credentials: str | None = Form(None),
     documents: List[UploadFile] = File(default=[]),
     user_id: int = Depends(get_current_user_id),
@@ -57,7 +58,8 @@ async def create_qa_analysis(
                 "name": name,
                 "user_id": user_id,
                 "target_url": target_url,
-                "description": description
+                "description": description,
+                "screen_context": screen_context
             },
             documents=documents,
             access_credentials=credentials_list

@@ -13,6 +13,7 @@ class QaAnalysis(Base):
     name = Column(String(255), nullable=False)
     target_url = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
+    screen_context = Column(Text, nullable=True)
 
     status = Column(String(50), nullable=False, default="draft")
 
