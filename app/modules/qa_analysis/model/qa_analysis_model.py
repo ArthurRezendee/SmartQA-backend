@@ -30,6 +30,6 @@ class QaAnalysis(Base):
         lazy="selectin"
     )
     
-    # test_cases = relationship("TestCase", back_populates="analysis", cascade="all, delete-orphan")
+    test_cases = relationship("TestCase", back_populates="analysis", cascade="all, delete-orphan")
     # scripts = relationship("AutomationScript", back_populates="analysis", cascade="all, delete-orphan")
     # exports = relationship("Export", back_populates="analysis", cascade="all, delete-orphan")
