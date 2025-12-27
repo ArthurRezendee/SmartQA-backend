@@ -1,3 +1,6 @@
+# from docling.document_converter import DocumentConverter
+from pathlib import Path
+
 class AiUtils:
     """
     Utilitários de IA responsáveis por construir prompts e blocos de contexto.
@@ -99,7 +102,7 @@ como se estivesse documentando a tela para alguém que nunca a viu.
 """.strip()
 
     @staticmethod
-    def build_test_case_prompt(ui_description: str, analysis: dict) -> str:
+    def build_test_case_prompt(ui_description: str, analysis: dict, documents_block: str,) -> str:
         """
         Prompt usado pelo agente gerador de casos de teste.
         """
@@ -211,4 +214,69 @@ DESCRIÇÃO DA INTERFACE ANALISADA
 \"\"\"
 {ui_description}
 \"\"\"
+""".strip()
+
+    @staticmethod
+    def read_documents_with_docling(documents: list) -> str:
+        """
+        Lê documentos da qa_documents usando Docling
+        e retorna um texto unificado para RAG no prompt.
+        """
+
+        if not documents:
+            return ""
+
+        converter = DocumentConverter()
+        extracted_contents: list[str] = []
+
+        for doc in documents:
+            file_path = doc.path
+            doc_type = doc.type or "Documento"
+
+            if not file_path or not Path(file_path).exists():
+                continue
+
+            try:
+                result = converter.convert(file_path)
+                text = result.document.export_to_text()
+
+                if text:
+                    extracted_contents.append(
+                        f"--- {doc_type.upper()} ---\n{text.strip()}"
+                    )
+
+            except Exception:
+                extracted_contents.append(
+                    f"--- {doc_type.upper()} ---\nErro ao processar o documento."
+                )
+
+        return "\n\n".join(extracted_contents)
+      
+    @staticmethod
+    def build_documents_block(documents_text: str) -> str:
+        """
+        Gera o bloco de contexto documental para o prompt.
+        """
+
+        if not documents_text:
+            return "Nenhum documento adicional foi fornecido pelo QA."
+
+        return f"""
+==================================================
+DOCUMENTAÇÃO ANEXADA À ANÁLISE
+==================================================
+
+Os textos abaixo foram extraídos de documentos fornecidos pelo QA.
+
+Use essas informações apenas para:
+- entender regras de negócio
+- compreender validações
+- alinhar nomenclaturas e fluxos
+
+REGRAS IMPORTANTES:
+- NÃO invente funcionalidades
+- NÃO gere testes baseados apenas no documento
+- Se houver conflito, PRIORIZE a interface analisada
+
+{documents_text}
 """.strip()

@@ -37,9 +37,18 @@ def generate_screen_description(*, analysis_id: int, user_id: int):
             analysis=analysis
         )
 
+        documents_text = AiUtils.read_documents_with_docling(
+            documents=analysis.documents
+        )
+
+        documents_block = AiUtils.build_documents_block(
+            documents_text
+        )
+
         test_case_prompt = AiUtils.build_test_case_prompt(
             ui_description=ui_description,
-            analysis=analysis,
+            analysis=analysis.to_dict(),
+            documents_block=documents_block,
         )
 
         logger.info(f"🖥️ UI DESCRIPTION:\n{ui_description}")
