@@ -7,7 +7,6 @@ from app.modules.qa_analysis.service.qa_analysis_service import QaAnalysisServic
 from app.modules.ai.service.screen_explorer_service import ScreenExplorerService
 from app.modules.ai.utils.ai_utils import AiUtils
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,18 +36,46 @@ def generate_screen_description(*, analysis_id: int, user_id: int):
             analysis=analysis
         )
 
-        documents_text = AiUtils.read_documents_with_docling(
-            documents=analysis.documents
+        documents_block = None
+        documents_text = None
+
+        # suporta analysis como objeto OU dict
+        documents = (
+            analysis.get("documents")
+            if isinstance(analysis, dict)
+            else getattr(analysis, "documents", None)
         )
 
-        documents_block = AiUtils.build_documents_block(
-            documents_text
+        if documents:
+            documents_text = AiUtils.read_documents_with_docling(
+                documents=documents
+            )
+
+            if documents_text and documents_text.strip():
+                documents_block = AiUtils.build_documents_block(
+                    documents_text
+                )
+
+
+        analysis_payload = (
+            analysis if isinstance(analysis, dict) else analysis.to_dict()
         )
+
 
         test_case_prompt = AiUtils.build_test_case_prompt(
             ui_description=ui_description,
-            analysis=analysis.to_dict(),
+            analysis=analysis_payload,
             documents_block=documents_block,
+        )
+
+
+        celery_app.send_task(
+            "jobs.ia.generate_test_case",
+            kwargs={
+                "analysis_id": analysis_id,
+                "user_id": user_id,
+                "test_case_prompt": test_case_prompt,
+            },
         )
 
         logger.info(f"🖥️ UI DESCRIPTION:\n{ui_description}")

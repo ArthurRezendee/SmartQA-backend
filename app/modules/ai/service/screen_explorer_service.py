@@ -22,7 +22,7 @@ class ScreenExplorerService:
 
         browser = Browser(
             headless=True,
-            executable_path="/root/.cache/ms-playwright/chromium-1200/chrome-linux64/chrome",
+            executable_path="/root/.cache/ms-playwright/chromium-1200/chrome-linux/chrome",
         )
 
         llm = ChatBrowserUse()
