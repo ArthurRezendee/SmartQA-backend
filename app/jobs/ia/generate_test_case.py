@@ -17,6 +17,9 @@ def geneate_test_case(*args, **kwargs):
     )
 
 
-    # TODO: implementar lógica do job    
+    # TODO: implementar lógica do job 
+    testCases = TestCaseAgent().generate(kwargs['test_case_prompt'])
+    
+    logger.info("Testes Gerados: " + testCases)
 
     logger.info("✅ Job GenerateTestCase finalizado")

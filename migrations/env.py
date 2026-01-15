@@ -19,6 +19,7 @@ from app.modules.qa_analysis.model.qa_document_model import QaDocument
 from app.modules.qa_analysis.model.access_credential_model import AccessCredential
 from app.modules.test_case.model.test_case_model import TestCase
 from app.modules.test_case.model.test_case_step_model import TestCaseStep
+from app.modules.user.model.process_notification_model import ProcessNotification
 
 
 config = context.config
