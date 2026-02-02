@@ -102,119 +102,138 @@ como se estivesse documentando a tela para alguém que nunca a viu.
 """.strip()
 
     @staticmethod
-    def build_test_case_prompt(ui_description: str, analysis: dict, documents_block: str,) -> str:
+    def build_test_case_prompt(
+        ui_description: str,
+        analysis: dict,
+        documents_block: str,
+    ) -> str:
         """
         Prompt usado pelo agente gerador de casos de teste.
+        Retorno obrigatório: JSON OBJECT com chave "items" (lista de casos).
         """
 
         return f"""
-Você é um QA Sênior altamente experiente, especializado em testes funcionais,
-regressão e prevenção de bugs críticos em sistemas web.
+    Você é um QA Sênior altamente experiente, especializado em testes funcionais,
+    regressão e prevenção de bugs críticos em sistemas web.
 
-Você está executando uma ANÁLISE DE QA com o seguinte contexto:
+    Você está executando uma ANÁLISE DE QA com o seguinte contexto:
 
-Nome da análise:
-"{analysis.get("name")}"
+    Nome da análise:
+    "{analysis.get("name")}"
 
-URL do sistema:
-{analysis.get("target_url")}
+    URL do sistema:
+    {analysis.get("target_url")}
 
-Objetivo da análise (fornecido pelo QA):
-"{analysis.get("description")}"
+    Objetivo da análise (fornecido pelo QA):
+    "{analysis.get("description")}"
 
-Contexto adicional da tela:
-"{analysis.get("screen_context")}"
+    Contexto adicional da tela:
+    "{analysis.get("screen_context")}"
 
-==================================================
-TAREFA PRINCIPAL
-==================================================
+    ==================================================
+    TAREFA PRINCIPAL
+    ==================================================
 
-Gerar o MAIOR NÚMERO POSSÍVEL de CASOS DE TESTE FUNCIONAIS
-com base EXCLUSIVAMENTE na interface analisada.
+    Gerar o MAIOR NÚMERO POSSÍVEL de CASOS DE TESTE FUNCIONAIS
+    com base EXCLUSIVAMENTE na interface analisada.
 
-Os testes devem cobrir:
-- Fluxos principais da tela
-- Variações válidas e inválidas de uso
-- Estados alternativos da interface
-- Erros comuns de usuário
-- Situações limite (edge cases)
-- Regressões prováveis
-- Comportamentos que podem gerar bugs críticos
+    Os testes devem cobrir:
+    - Fluxos principais da tela
+    - Variações válidas e inválidas de uso
+    - Estados alternativos da interface (vazio, carregando, erro, sucesso)
+    - Erros comuns de usuário
+    - Situações limite (edge cases)
+    - Regressões prováveis
+    - Comportamentos que podem gerar bugs críticos
 
-==================================================
-REGRAS OBRIGATÓRIAS
-==================================================
+    ==================================================
+    REGRAS OBRIGATÓRIAS (SEM EXCEÇÃO)
+    ==================================================
 
-1. NÃO invente funcionalidades que não estejam descritas na interface
-2. NÃO assuma integrações externas não mencionadas
-3. NÃO descreva testes genéricos ou repetidos
-4. NÃO explique o que está fazendo
-5. NÃO utilize markdown ou texto fora do JSON
-6. Cada caso de teste deve validar UM objetivo claro
-7. Cada passo deve representar UMA ação do usuário ou UMA verificação clara
-8. Pense como um QA experiente tentando QUEBRAR o sistema
+    1. NÃO invente funcionalidades que não estejam descritas na interface
+    2. NÃO assuma integrações externas não mencionadas
+    3. NÃO descreva testes genéricos, repetidos ou vagos
+    4. NÃO explique o que está fazendo
+    5. NÃO utilize markdown
+    6. NÃO retorne texto fora do JSON
+    7. Cada caso de teste deve validar UM objetivo claro
+    8. Cada passo deve representar UMA ação do usuário OU UMA verificação clara
+    9. NÃO inclua comentários no JSON
+    10. NÃO use chaves diferentes do formato especificado
 
-==================================================
-DIVERSIDADE DE TESTES (OBRIGATÓRIO)
-==================================================
+    ==================================================
+    DIVERSIDADE DE TESTES (OBRIGATÓRIO)
+    ==================================================
 
-Distribua os testes entre os seguintes tipos, quando aplicável:
+    Distribua os testes entre os seguintes tipos, quando aplicável:
+    - functional
+    - regression
+    - smoke
+    - exploratory
 
-- functional
-- regression
-- smoke
-- exploratory
+    Distribua os cenários entre:
+    - positive
+    - negative
+    - edge
 
-Distribua os cenários entre:
+    Use prioridade e risco de forma REALISTA:
+    - critical → falha bloqueia uso da tela
+    - high → falha grave, mas com workaround
+    - medium → impacto parcial
+    - low → impacto visual ou secundário
 
-- positive
-- negative
-- edge
+    ==================================================
+    FORMATO DE SAÍDA (OBRIGATÓRIO)
+    ==================================================
 
-Use prioridade e risco de forma REALISTA:
-- critical → falha bloqueia uso da tela
-- high → falha grave, mas com workaround
-- medium → impacto parcial
-- low → impacto visual ou secundário
+    RETORNE APENAS UM JSON VÁLIDO.
+    A RAIZ DO JSON DEVE SER UM OBJETO (NÃO ARRAY).
+    A RAIZ DEVE CONTER EXATAMENTE A CHAVE "items".
 
-==================================================
-FORMATO DE SAÍDA (OBRIGATÓRIO)
-==================================================
+    NÃO retorne:
+    - array na raiz
+    - "test_cases"
+    - "data"
+    - "cases"
+    - qualquer outra chave
 
-Retorne APENAS um JSON válido no formato abaixo.
+    FORMATO EXATO:
 
-[
-  {{
-    "title": "Título curto, claro e objetivo",
-    "description": "Descrição do cenário validado pelo teste",
-    "objective": "O que este teste garante no sistema",
+    {{
+    "items": [
+        {{
+        "title": "Título curto, claro e objetivo",
+        "description": "Descrição do cenário validado pelo teste",
+        "objective": "O que este teste garante no sistema",
 
-    "test_type": "functional | regression | smoke | exploratory",
-    "scenario_type": "positive | negative | edge",
-    "priority": "low | medium | high | critical",
-    "risk_level": "low | medium | high",
+        "test_type": "functional | regression | smoke | exploratory",
+        "scenario_type": "positive | negative | edge",
+        "priority": "low | medium | high | critical",
+        "risk_level": "low | medium | high",
 
-    "preconditions": "Condições necessárias antes da execução",
-    "expected_result": "Resultado esperado ao final do cenário",
+        "preconditions": "Condições necessárias antes da execução",
+        "expected_result": "Resultado esperado ao final do cenário",
 
-    "steps": [
-      {{
-        "order": 1,
-        "action": "Ação realizada pelo usuário",
-        "expected_result": "Resultado esperado após a ação"
-      }}
+        "steps": [
+            {{
+            "order": 1,
+            "action": "Ação realizada pelo usuário",
+            "expected_result": "Resultado esperado após a ação"
+            }}
+        ]
+        }}
     ]
-  }}
-]
+    }}
 
-==================================================
-DESCRIÇÃO DA INTERFACE ANALISADA
-==================================================
+    ==================================================
+    DESCRIÇÃO DA INTERFACE ANALISADA
+    ==================================================
 
-\"\"\"
-{ui_description}
-\"\"\"
-""".strip()
+    \"\"\"
+    {ui_description}
+    \"\"\"
+    """.strip()
+
 
     @staticmethod
     def read_documents_with_docling(documents: list) -> str:

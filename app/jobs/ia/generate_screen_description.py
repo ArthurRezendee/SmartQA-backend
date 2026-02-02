@@ -72,7 +72,7 @@ def generate_screen_description(*, analysis_id: int, user_id: int):
         celery_app.send_task(
             "jobs.ia.generate_test_case",
             kwargs={
-                "analysis_id": analysis_id,
+                "qa_analysis_id": analysis_id,
                 "user_id": user_id,
                 "test_case_prompt": test_case_prompt,
             },
