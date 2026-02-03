@@ -5,8 +5,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.modules.ai.service.tests_generator_service import TestCaseAgent
 from app.core.database.sync_db import SessionLocal
 
-from app.modules.test_case.model.test_case_model import TestCase 
-from app.modules.test_case.model.test_case_step_model import TestCaseStep 
+from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis  # <-- IMPORTA
+from app.modules.test_case.model.test_case_model import TestCase
+from app.modules.test_case.model.test_case_step_model import TestCaseStep
 
 
 logger = logging.getLogger(__name__)
@@ -38,12 +39,6 @@ def safe_text(value):
     retry_kwargs={"max_retries": 3, "countdown": 10},
 )
 def generate_test_case(*args, **kwargs):
-    """
-    kwargs esperado:
-      - qa_analysis_id: int
-      - test_case_prompt: str
-      - ai_model_used: str (opcional)
-    """
     logger.info(f"🚀 Job GenerateTestCase iniciado | kwargs={kwargs}")
 
     qa_analysis_id = kwargs.get("qa_analysis_id")
@@ -58,16 +53,30 @@ def generate_test_case(*args, **kwargs):
     db = SessionLocal()
 
     try:
+        # ==========================================================
+        # 0) status = generating
+        # ==========================================================
+        analysis = db.query(QaAnalysis).filter(QaAnalysis.id == qa_analysis_id).first()
+        if not analysis:
+            raise ValueError(f"QaAnalysis {qa_analysis_id} não encontrada")
+
+        analysis.status = "generating"
+        db.flush()
+
+        # ==========================================================
         # 1) chama IA
+        # ==========================================================
         agent = TestCaseAgent(model=ai_model_used)
-        test_cases_payload = agent.generate(test_case_prompt)  # List[dict]
+        test_cases_payload = agent.generate(test_case_prompt)
 
         if not isinstance(test_cases_payload, list) or len(test_cases_payload) == 0:
             raise ValueError("IA retornou lista vazia de casos de teste")
 
         logger.info(f"[GenerateTestCase] IA retornou {len(test_cases_payload)} casos")
 
-        # 2) persistência em transação
+        # ==========================================================
+        # 2) persistência
+        # ==========================================================
         created_test_cases: list[TestCase] = []
 
         for idx, tc in enumerate(test_cases_payload, start=1):
@@ -78,7 +87,7 @@ def generate_test_case(*args, **kwargs):
 
             test_case = TestCase(
                 qa_analysis_id=qa_analysis_id,
-                title=title[:255],  # garante limite
+                title=title[:255],
                 description=safe_text(tc.get("description")),
                 objective=safe_text(tc.get("objective")),
 
@@ -99,16 +108,16 @@ def generate_test_case(*args, **kwargs):
             db.add(test_case)
             created_test_cases.append(test_case)
 
-        # flush para obter IDs
         db.flush()
 
+        # ==========================================================
         # 3) steps
+        # ==========================================================
         steps_to_create: list[TestCaseStep] = []
 
         for tc_obj, tc_payload in zip(created_test_cases, test_cases_payload):
             steps = tc_payload.get("steps") or []
             if not isinstance(steps, list) or len(steps) == 0:
-                # sem steps, ainda pode salvar o caso
                 continue
 
             for st in steps:
@@ -132,6 +141,11 @@ def generate_test_case(*args, **kwargs):
         if steps_to_create:
             db.bulk_save_objects(steps_to_create)
 
+        # ==========================================================
+        # 4) status = generated
+        # ==========================================================
+        analysis.status = "generated"
+
         db.commit()
 
         logger.info(
@@ -143,11 +157,29 @@ def generate_test_case(*args, **kwargs):
 
     except SQLAlchemyError as e:
         db.rollback()
+
+        try:
+            analysis = db.query(QaAnalysis).filter(QaAnalysis.id == qa_analysis_id).first()
+            if analysis:
+                analysis.status = "error"
+                db.commit()
+        except Exception:
+            db.rollback()
+
         logger.exception(f"[GenerateTestCase] Erro SQLAlchemy: {e}")
         raise
 
     except Exception as e:
         db.rollback()
+
+        try:
+            analysis = db.query(QaAnalysis).filter(QaAnalysis.id == qa_analysis_id).first()
+            if analysis:
+                analysis.status = "error"
+                db.commit()
+        except Exception:
+            db.rollback()
+
         logger.exception(f"[GenerateTestCase] Falha geral: {e}")
         raise
 
