@@ -14,6 +14,11 @@ class QaAnalysis(Base):
     description = Column(Text, nullable=True)
     screen_context = Column(Text, nullable=True)
 
+    tests_description = Column(Text, nullable=True)          
+    playwright_description = Column(Text, nullable=True)      
+    documentation_description = Column(Text, nullable=True)  
+    uiux_description = Column(Text, nullable=True)            
+
     status = Column(String(50), nullable=False, default="draft")
 
     documents = relationship(
@@ -21,14 +26,16 @@ class QaAnalysis(Base):
         back_populates="analysis",
         cascade="all, delete-orphan"
     )
-    
+
     access_credentials = relationship(
         "AccessCredential",
         back_populates="analysis",
         cascade="all, delete-orphan",
         lazy="selectin"
     )
-    
-    test_cases = relationship("TestCase", back_populates="analysis", cascade="all, delete-orphan")
-    # scripts = relationship("AutomationScript", back_populates="analysis", cascade="all, delete-orphan")
-    # exports = relationship("Export", back_populates="analysis", cascade="all, delete-orphan")
+
+    test_cases = relationship(
+        "TestCase",
+        back_populates="analysis",
+        cascade="all, delete-orphan"
+    )
