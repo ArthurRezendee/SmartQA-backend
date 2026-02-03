@@ -1,5 +1,8 @@
-# from docling.document_converter import DocumentConverter
 from pathlib import Path
+import json
+import re
+import ast
+from typing import Any, Dict
 
 class AiUtils:
     """
@@ -35,7 +38,8 @@ class AiUtils:
         credentials_block: str,
     ) -> str:
         """
-        Prompt usado pelo agente BrowserUse para gerar a descrição funcional da tela.
+        Prompt usado pelo agente BrowserUse para explorar a tela.
+        Agora retorna JSON com 4 descrições em UMA explorada.
         """
 
         return f"""
@@ -59,8 +63,13 @@ OBJETIVO DA EXPLORAÇÃO
 
 Você está atuando como um QA Sênior especializado em testes funcionais de interfaces web.
 
-Seu objetivo é EXPLORAR a tela cuidadosamente e produzir uma DESCRIÇÃO TÉCNICA E FUNCIONAL
-da interface, que será usada por outro agente para GERAR CASOS DE TESTE.
+Seu objetivo é EXPLORAR a tela cuidadosamente e retornar QUATRO DESCRIÇÕES diferentes,
+em formato JSON, que serão usadas por outros agentes do sistema:
+
+1) tests_description: descrição técnica/funcional voltada para geração de casos de teste
+2) playwright_description: descrição voltada para automação Playwright
+3) documentation_description: descrição voltada para documentação funcional
+4) uiux_description: avaliação crítica UI/UX com melhorias sugeridas
 
 ==================================================
 REGRAS DE EXPLORAÇÃO
@@ -78,27 +87,64 @@ REGRAS DE EXPLORAÇÃO
 O QUE DESCREVER (OBRIGATÓRIO)
 ==================================================
 
-Durante a exploração, descreva claramente:
+Durante a exploração, identifique e use como base:
 
-1. Estrutura geral da tela
-2. Elementos interativos relevantes
-3. Fluxos possíveis do usuário
-4. Comportamentos da interface
-5. Estados da tela
-6. Limitações observáveis
+- Estrutura geral da tela
+- Elementos interativos relevantes
+- Fluxos possíveis do usuário
+- Comportamentos da interface
+- Estados da tela (vazio, carregando, erro, sucesso)
+- Limitações observáveis
+- Validações e regras aparentes
 
 ==================================================
-REGRAS DE SAÍDA
+REGRAS DE SAÍDA (MUITO IMPORTANTE)
 ==================================================
 
-- NÃO explique o que você está fazendo
-- NÃO inclua opiniões pessoais
-- NÃO use markdown, listas numeradas ou títulos
-- NÃO inclua textos fora da descrição da interface
-- NÃO mencione QA, testes ou agentes
+RETORNE APENAS JSON VÁLIDO.
+A RAIZ DO JSON DEVE SER UM OBJETO.
+DEVE CONTER EXATAMENTE AS CHAVES ABAIXO:
 
-Retorne APENAS uma descrição contínua, clara, detalhada e objetiva da interface explorada,
-como se estivesse documentando a tela para alguém que nunca a viu.
+{{
+  "tests_description": "string",
+  "playwright_description": "string",
+  "documentation_description": "string",
+  "uiux_description": "string"
+}}
+
+REGRAS IMPORTANTES PARA CADA CAMPO:
+
+- tests_description:
+  - descrição contínua, clara, detalhada e objetiva
+  - SEM markdown, SEM listas numeradas, SEM títulos
+  - SEM opinião, SEM sugestões de melhoria
+  - NÃO mencione QA, testes ou agentes
+
+- playwright_description:
+  - descrição objetiva e acionável para automação
+  - cite elementos e ações comuns (campos, botões, modais, tabelas, filtros, paginação)
+  - sugira âncoras para seletores (label, placeholder, texto do botão)
+  - SEM código
+  - SEM markdown
+
+- documentation_description:
+  - linguagem clara, explicando o propósito da tela e como usar
+  - descreva passos de uso e comportamentos
+  - SEM markdown
+
+- uiux_description:
+  - avaliação crítica com melhorias sugeridas
+  - inclua acessibilidade, consistência, hierarquia, mensagens, estados vazios/loading, prevenção de erro
+  - SEM markdown
+  
+PROIBIDO:
+- NÃO use write_file
+- NÃO escreva arquivos
+- NÃO use ferramentas para salvar conteúdo
+- NÃO repita o JSON
+- Após gerar o JSON, finalize imediatamente
+
+NÃO inclua nenhum texto fora do JSON.
 """.strip()
 
     @staticmethod
@@ -299,3 +345,52 @@ REGRAS IMPORTANTES:
 
 {documents_text}
 """.strip()
+
+
+    @staticmethod
+    def parse_browseruse_json(result: str) -> Dict[str, Any]:
+        """
+        Faz parse robusto do retorno do BrowserUse.
+
+        Suporta:
+        - JSON normal: {"a": 1}
+        - JSON escapado: {\"a\": 1}
+        - string com prefixo "Final Result:" + JSON
+        - JSON dentro de texto/log
+        """
+        if not result:
+            raise ValueError("Resultado vazio do BrowserUse")
+
+        raw = result.strip()
+
+        # 1) tenta pegar o primeiro bloco JSON {...}
+        # (isso evita lixo tipo "Final Result:" etc)
+        m = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+        if m:
+            raw = m.group(0).strip()
+
+        # 2) tenta JSON direto
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        # 3) se estiver escapado tipo {\"a\":1}
+        # troca \" por "
+        try:
+            unescaped = raw.replace('\\"', '"')
+            return json.loads(unescaped)
+        except json.JSONDecodeError:
+            pass
+
+      
+        try:
+            evaluated = ast.literal_eval(raw)
+            if isinstance(evaluated, str):
+                return json.loads(evaluated)
+            if isinstance(evaluated, dict):
+                return evaluated
+        except Exception:
+            pass
+
+        raise ValueError(f"Não foi possível parsear JSON do BrowserUse. raw={raw[:500]}")
