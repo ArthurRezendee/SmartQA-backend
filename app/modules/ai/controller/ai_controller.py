@@ -13,7 +13,7 @@ class AiController(BaseController):
             user_id=user_id
         )
         
-    async def generate_scripts_playright(self, analysis_id: int, user_id: int):
+    async def generate_scripts_playwright(self, analysis_id: int, user_id: int):
         return await self.service.generate_scripts_playwright(
             analysis_id=analysis_id,
             user_id=user_id

@@ -56,5 +56,5 @@ async def generate_scripts_playwright(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail="Erro interno ao gerar scripts playwright"
+            detail="Erro interno ao gerar scripts playwright" + e
         )
