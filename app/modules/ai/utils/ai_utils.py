@@ -129,9 +129,8 @@ REGRAS IMPORTANTES PARA CADA CAMPO:
   - descrição objetiva e acionável para automação
   - cite elementos e ações comuns (campos, botões, modais, tabelas, filtros, paginação)
   - sugira âncoras para seletores (label, placeholder, texto do botão)
-  - Caso haja autenticacão na tela, descreva os passos para login com todos os elementos necessários, inclusive as credenciais de acesso fornecidas.
-  - SEM código
-  - SEM markdown
+  - Caso haja autenticacão na tela, descreva os campos para login e seus id's ou referencias.
+
 
 - documentation_description:
   - linguagem clara, explicando o propósito da tela e como usar
