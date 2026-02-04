@@ -39,3 +39,11 @@ class QaAnalysis(Base):
         back_populates="analysis",
         cascade="all, delete-orphan"
     )
+    
+    playwright_scripts = relationship(
+        "PlaywrightScript",
+        back_populates="analysis",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
