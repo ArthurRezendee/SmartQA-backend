@@ -25,6 +25,7 @@ class TestCaseController(BaseController):
             "action": step.action,
             "expected_result": step.expected_result,
             "step_type": step.step_type,
+            "deleted_at": step.deleted_at
         }
 
     def _serialize_test_case(self, tc: TestCase) -> Dict[str, Any]:
@@ -48,6 +49,7 @@ class TestCaseController(BaseController):
             "ai_model_used": tc.ai_model_used,
             "ai_confidence_score": tc.ai_confidence_score,
             "steps": [self._serialize_step(s) for s in (tc.steps or [])],
+            "deleted_at": tc.deleted_at
         }
 
     def _validate_steps_payload(self, steps: Any):
