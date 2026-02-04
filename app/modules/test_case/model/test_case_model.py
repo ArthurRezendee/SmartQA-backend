@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Float,
     ForeignKey,
+    DateTime
 )
 from sqlalchemy.orm import relationship
 
@@ -117,6 +118,7 @@ class TestCase(Base):
     ai_model_used = Column(String(100), nullable=True)
     ai_confidence_score = Column(Float, nullable=True)
 
+    deleted_at = Column(DateTime, nullable=True, default=None) 
     # relacionamentos
     steps = relationship(
         "TestCaseStep",

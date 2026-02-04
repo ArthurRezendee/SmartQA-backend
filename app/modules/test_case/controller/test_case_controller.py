@@ -6,6 +6,7 @@ from app.core.database.sync_db import SessionLocal
 from app.modules.test_case.model.test_case_model import TestCase
 from app.modules.test_case.model.test_case_step_model import TestCaseStep
 from app.shared.controller import BaseController
+import datetime
 
 
 class TestCaseController(BaseController):
@@ -313,5 +314,111 @@ class TestCaseController(BaseController):
         except Exception as e:
             db.rollback()
             return {"status": False, "message": f"erro ao atualizar caso de teste: {e}", "data": None}
+        finally:
+            db.close()
+
+    async def soft_delete(self, analyses_id: int, test_case_id: int):
+        db: Session = SessionLocal()
+        try:
+            tc = (
+                db.query(TestCase)
+                .filter(TestCase.id == test_case_id)
+                .filter(TestCase.qa_analysis_id == analyses_id)
+                .first()
+            )
+
+            if not tc:
+                return {"status": False, "message": "caso de teste não encontrado", "data": None}
+
+            tc.deleted_at = datetime.datetime.utcnow()
+            db.commit()
+
+            return {"status": True, "message": "caso de teste apagado com sucesso", "data": {"id": tc.id}}
+
+        except Exception as e:
+            db.rollback()
+            return {"status": False, "message": f"erro ao apagar caso de teste: {e}", "data": None}
+        finally:
+            db.close()
+
+
+    async def restore(self, analyses_id: int, test_case_id: int, restore_status: str = "generated"):
+        db: Session = SessionLocal()
+        try:
+            tc = (
+                db.query(TestCase)
+                .filter(TestCase.id == test_case_id)
+                .filter(TestCase.qa_analysis_id == analyses_id)
+                .first()
+            )
+
+            if not tc:
+                return {"status": False, "message": "caso de teste não encontrado", "data": None}
+
+            if tc.deleted_at:
+                return {"status": False, "message": "caso de teste não está apagado", "data": None}
+
+            tc.deleted_at = None
+            db.commit()
+
+            return {"status": True, "message": "caso de teste recuperado com sucesso", "data": {"id": tc.id}}
+
+        except Exception as e:
+            db.rollback()
+            return {"status": False, "message": f"erro ao recuperar caso de teste: {e}", "data": None}
+        finally:
+            db.close()
+
+
+    async def step_soft_delete(self, analyses_id: int, test_case_id: int, step_id: int):
+        db: Session = SessionLocal()
+        try:
+            step = (
+                db.query(TestCaseStep)
+                .join(TestCase, TestCase.id == TestCaseStep.test_case_id)
+                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.id == test_case_id)
+                .filter(TestCaseStep.id == step_id)
+                .first()
+            )
+
+            if not step:
+                return {"status": False, "message": "step não encontrado", "data": None}
+
+            step.deleted_at = datetime.datetime.utcnow()
+            db.commit()
+
+            return {"status": True, "message": "step apagado com sucesso", "data": {"id": step.id}}
+
+        except Exception as e:
+            db.rollback()
+            return {"status": False, "message": f"erro ao apagar step: {e}", "data": None}
+        finally:
+            db.close()
+
+
+    async def step_restore(self, analyses_id: int, test_case_id: int, step_id: int):
+        db: Session = SessionLocal()
+        try:
+            step = (
+                db.query(TestCaseStep)
+                .join(TestCase, TestCase.id == TestCaseStep.test_case_id)
+                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.id == test_case_id)
+                .filter(TestCaseStep.id == step_id)
+                .first()
+            )
+
+            if not step:
+                return {"status": False, "message": "step não encontrado", "data": None}
+
+            step.deleted_at = None
+            db.commit()
+
+            return {"status": True, "message": "step recuperado com sucesso", "data": {"id": step.id}}
+
+        except Exception as e:
+            db.rollback()
+            return {"status": False, "message": f"erro ao recuperar step: {e}", "data": None}
         finally:
             db.close()

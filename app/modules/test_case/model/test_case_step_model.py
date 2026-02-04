@@ -4,6 +4,7 @@ from sqlalchemy import (
     Text,
     Enum,
     ForeignKey,
+    DateTime
 )
 from sqlalchemy.orm import relationship
 
@@ -37,5 +38,7 @@ class TestCaseStep(Base):
         nullable=False,
         default="action",
     )
+
+    deleted_at = Column(DateTime, nullable=True, default=None) 
 
     test_case = relationship("TestCase", back_populates="steps")
