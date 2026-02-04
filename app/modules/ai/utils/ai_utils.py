@@ -3,6 +3,8 @@ import json
 import re
 import ast
 from typing import Any, Dict
+from docling.document_converter import DocumentConverter
+
 
 class AiUtils:
     """
@@ -175,6 +177,8 @@ NÃO inclua nenhum texto fora do JSON.
 
     Contexto adicional da tela:
     "{analysis.get("screen_context")}"
+    
+    "{documents_block}"
 
     ==================================================
     TAREFA PRINCIPAL
@@ -309,6 +313,12 @@ NÃO inclua nenhum texto fora do JSON.
         """
         Lê documentos da qa_documents usando Docling
         e retorna um texto unificado para RAG no prompt.
+
+        Robusto contra:
+        - path inexistente
+        - doc vazio/malformado
+        - retorno sem texto
+        - exceções do docling
         """
 
         if not documents:
@@ -317,29 +327,76 @@ NÃO inclua nenhum texto fora do JSON.
         converter = DocumentConverter()
         extracted_contents: list[str] = []
 
-        for doc in documents:
-            file_path = doc.path
-            doc_type = doc.type or "Documento"
+        for i, doc in enumerate(documents, start=1):
+            # suporta doc como dict ou objeto
+            file_path = None
+            doc_type = None
 
-            if not file_path or not Path(file_path).exists():
+            try:
+                if isinstance(doc, dict):
+                    file_path = doc.get("path")
+                    doc_type = doc.get("type") or "Documento"
+                else:
+                    file_path = getattr(doc, "path", None)
+                    doc_type = getattr(doc, "type", None) or "Documento"
+            except Exception:
+                extracted_contents.append(
+                    f"--- DOCUMENTO {i} ---\nDocumento inválido (estrutura inesperada)."
+                )
+                continue
+
+            if not file_path:
+                extracted_contents.append(
+                    f"--- {str(doc_type).upper()} ---\nDocumento sem caminho (path vazio)."
+                )
+                continue
+
+            path = Path(file_path)
+
+            if not path.exists():
+                extracted_contents.append(
+                    f"--- {str(doc_type).upper()} ---\nArquivo não encontrado: {file_path}"
+                )
+                continue
+
+            if not path.is_file():
+                extracted_contents.append(
+                    f"--- {str(doc_type).upper()} ---\nPath não é arquivo: {file_path}"
+                )
                 continue
 
             try:
-                result = converter.convert(file_path)
-                text = result.document.export_to_text()
+                result = converter.convert(str(path))
+                text = (result.document.export_to_text() or "").strip()
 
-                if text:
+                if not text:
                     extracted_contents.append(
-                        f"--- {doc_type.upper()} ---\n{text.strip()}"
+                        f"--- {str(doc_type).upper()} ---\n"
+                        f"Não foi possível extrair texto (arquivo pode ser imagem/escaneado). "
+                        f"Arquivo: {path.name}"
                     )
+                    continue
 
-            except Exception:
+                # (opcional) limitar tamanho para não explodir o prompt
+                MAX_CHARS = 12000
+                if len(text) > MAX_CHARS:
+                    text = text[:MAX_CHARS] + "\n\n[...texto truncado...]"
+
                 extracted_contents.append(
-                    f"--- {doc_type.upper()} ---\nErro ao processar o documento."
+                    f"--- {str(doc_type).upper()} ({path.suffix.lower()}) ---\n{text}"
+                )
+
+            except Exception as e:
+                logger.exception(
+                    "Erro ao processar documento com Docling | path=%s | type=%s",
+                    str(path),
+                    doc_type,
+                )
+                extracted_contents.append(
+                    f"--- {str(doc_type).upper()} ---\nErro ao processar documento: {type(e).__name__}"
                 )
 
         return "\n\n".join(extracted_contents)
-      
     @staticmethod
     def build_documents_block(documents_text: str) -> str:
         """
