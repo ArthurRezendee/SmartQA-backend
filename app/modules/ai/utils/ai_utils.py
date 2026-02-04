@@ -1,9 +1,12 @@
+from __future__ import annotations
 from pathlib import Path
 import json
 import re
 import ast
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from docling.document_converter import DocumentConverter
+import textwrap
+
 
 
 class AiUtils:
@@ -126,6 +129,7 @@ REGRAS IMPORTANTES PARA CADA CAMPO:
   - descrição objetiva e acionável para automação
   - cite elementos e ações comuns (campos, botões, modais, tabelas, filtros, paginação)
   - sugira âncoras para seletores (label, placeholder, texto do botão)
+  - Caso haja autenticacão na tela, descreva os passos para login com todos os elementos necessários, inclusive as credenciais de acesso fornecidas.
   - SEM código
   - SEM markdown
 
@@ -387,11 +391,6 @@ NÃO inclua nenhum texto fora do JSON.
                 )
 
             except Exception as e:
-                logger.exception(
-                    "Erro ao processar documento com Docling | path=%s | type=%s",
-                    str(path),
-                    doc_type,
-                )
                 extracted_contents.append(
                     f"--- {str(doc_type).upper()} ---\nErro ao processar documento: {type(e).__name__}"
                 )
@@ -474,3 +473,181 @@ REGRAS IMPORTANTES:
             pass
 
         raise ValueError(f"Não foi possível parsear JSON do BrowserUse. raw={raw[:500]}")
+
+
+    def build_playwright_script_prompt(analysis: Dict[str, Any]) -> str:
+        """
+        Monta um prompt robusto para um agente gerar scripts Playwright
+        usando os dados de uma QaAnalysis (1 objeto).
+
+        Espera chaves como:
+        - id
+        - name
+        - target_url
+        - description
+        - screen_context
+        - tests_description
+        - playwright_description
+        - documentation_description
+        - uiux_description
+
+        Retorna: string prompt
+        """
+        
+        credentials_block = AiUtils.build_credentials_block(
+            analysis.get("access_credentials") or []
+        )
+
+        # Helpers pra evitar "None" no prompt
+        def s(value: Optional[Any], fallback: str = "") -> str:
+            if value is None:
+                return fallback
+            v = str(value).strip()
+            return v if v else fallback
+
+        analysis_id = s(analysis.get("id"), "N/A")
+        name = s(analysis.get("name"), "Sem nome")
+        target_url = s(analysis.get("target_url"), "")
+        description = s(analysis.get("description"), "")
+        screen_context = s(analysis.get("screen_context"), "")
+        playwright_description = s(analysis.get("playwright_description"), "")
+        tests_description = s(analysis.get("tests_description"), "")
+        documentation_description = s(analysis.get("documentation_description"), "")
+        uiux_description = s(analysis.get("uiux_description"), "")
+
+        # Regra especial: se não tiver target_url, não faz sentido gerar script
+        if not target_url:
+            raise ValueError("analysis.target_url é obrigatório para gerar script Playwright")
+
+        prompt = f"""
+    Você é um Engenheiro de QA Automation Sênior especialista em Playwright.
+
+    Você deve gerar um script Playwright COMPLETO e EXECUTÁVEL para automatizar testes E2E
+    da tela descrita abaixo, seguindo fielmente o contexto fornecido.
+
+    ==================================================
+    DADOS DA ANÁLISE
+    ==================================================
+
+    analysis_id: {analysis_id}
+    name: {name}
+    target_url: {target_url}
+
+    Objetivo definido pelo QA:
+    "{description or "Não informado."}"
+
+    Contexto da tela:
+    "{screen_context or "Não informado."}"
+
+    ==================================================
+    DESCRIÇÃO PARA AUTOMAÇÃO (FONTE PRINCIPAL)
+    ==================================================
+
+    Use esta descrição como BASE para seletores e fluxos:
+
+    \"\"\"
+    {playwright_description or "Não informado."}
+    \"\"\"
+
+    ==================================================
+    DESCRIÇÃO FUNCIONAL (APOIO)
+    ==================================================
+
+    \"\"\"
+    {tests_description or "Não informado."}
+    \"\"\"
+
+    ==================================================
+    DOCUMENTAÇÃO (APOIO)
+    ==================================================
+
+    \"\"\"
+    {documentation_description or "Não informado."}
+    \"\"\"
+
+    ==================================================
+    OBSERVAÇÕES UI/UX (APOIO)
+    ==================================================
+
+    \"\"\"
+    {uiux_description or "Não informado."}
+    \"\"\"
+
+    ==================================================
+    OBJETIVO DO SCRIPT
+    ==================================================
+
+    Gerar um arquivo de teste Playwright que:
+
+    1) Acesse a URL {target_url}
+    2) Execute os fluxos principais da tela
+    3) Valide listagem, filtros e paginação (quando existirem)
+    4) Valide criação e edição/atualização (quando existirem)
+    5) Cubra validações de campos obrigatórios e entradas inválidas
+    6) Gere asserts realistas e estáveis
+    7) NÃO teste funcionalidades proibidas pelo QA (se houver)
+
+    ==================================================
+    REGRAS IMPORTANTES (OBRIGATÓRIO)
+    ==================================================
+
+    - Gere testes com Playwright Test Runner (@playwright/test)
+    - Use TypeScript por padrão
+    - Use seletores estáveis:
+    - priorize getByRole(), getByLabel(), getByPlaceholder(), getByText()
+    - se necessário use locator('#id') conforme indicado na descrição
+    - Evite seletores frágeis (css baseado em nth-child, classes dinâmicas, etc)
+    - Inclua waits inteligentes:
+    - aguarde navegação e carregamento
+    - evite timeouts fixos (waitForTimeout) a menos que seja inevitável
+    - Separe testes em blocos `test.describe`
+    - Use `beforeEach` para login/navegação se fizer sentido
+    - Não invente elementos que não existem na descrição
+    - Caso algum passo seja incerto, implemente fallback com tentativas seguras e asserts suaves
+    - Se houver modais, valide abertura e fechamento
+    - Se houver paginação, valide troca de limite (10/50/100/1000) quando aplicável
+
+    ==================================================
+    RESTRIÇÕES DO QA
+    ==================================================
+
+    Se no objetivo existir alguma restrição como:
+    "Precisa testar tudo na tela, menos o botão de importar"
+
+    Então:
+    - NÃO clique no botão proibido
+    - NÃO crie teste envolvendo esse fluxo
+
+    ==================================================
+    FORMATO DE SAÍDA (MUITO IMPORTANTE)
+    ==================================================
+
+    RETORNE APENAS JSON VÁLIDO.
+    A raiz deve ser um OBJETO com EXATAMENTE as chaves:
+
+    {{
+    "language": "typescript",
+    "framework": "playwright",
+    "title": "string",
+    "script": "string"
+    }}
+
+    REGRAS DO CAMPO script:
+    - deve conter o código COMPLETO do arquivo `.spec.ts`
+    - não use markdown
+    - não inclua explicações
+    - não inclua texto fora do JSON
+
+    ==================================================
+    CHECKLIST DE QUALIDADE (OBRIGATÓRIO)
+    ==================================================
+
+    Antes de finalizar, garanta que:
+    - o código compila
+    - imports estão corretos
+    - o script não tem placeholders do tipo TODO
+    - os testes têm asserts (expect)
+    - os testes são resilientes a loading e estados iniciais
+    """.strip()
+
+        return textwrap.dedent(prompt).strip()
