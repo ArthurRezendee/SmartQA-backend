@@ -88,7 +88,7 @@ class TestCaseAgent:
                 model=self.model,
                 temperature=0.2,
                 top_p=0.9,
-                max_tokens=8000,
+                max_tokens=20000,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": full_prompt},

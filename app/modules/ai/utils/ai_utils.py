@@ -206,6 +206,29 @@ NÃO inclua nenhum texto fora do JSON.
     8. Cada passo deve representar UMA ação do usuário OU UMA verificação clara
     9. NÃO inclua comentários no JSON
     10. NÃO use chaves diferentes do formato especificado
+    
+    REQUISITO DE QUANTIDADE:
+    - Você DEVE gerar NO MÍNIMO 40 (QUARENTA) casos de teste distintos.
+    - Se a tela parecer simples, mesmo assim crie variações reais e relevantes:
+    - combinações de filtros
+    - paginação/ordenação
+    - estados vazios
+    - validações de campos
+    - permissões/ações desabilitadas
+    - falhas de rede/timeout
+    - concorrência (alteração simultânea)
+    - duplicidade
+    - caracteres especiais, limites e formatos
+    - Se necessário, gere 50+.
+
+    Os testes devem cobrir:
+    - Fluxos principais da tela
+    - Variações válidas e inválidas de uso
+    - Estados alternativos da interface (vazio, carregando, erro, sucesso)
+    - Erros comuns de usuário
+    - Situações limite (edge cases)
+    - Regressões prováveis
+    - Comportamentos que podem gerar bugs críticos
 
     ==================================================
     DIVERSIDADE DE TESTES (OBRIGATÓRIO)
