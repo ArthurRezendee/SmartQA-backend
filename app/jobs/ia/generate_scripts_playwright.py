@@ -38,6 +38,19 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
 
         if not isinstance(analysis_payload, dict):
             analysis_payload = analysis_payload.to_dict()
+        
+        updated_status = (
+            db.query(QaAnalysis)
+            .filter(QaAnalysis.id == analysis_id, QaAnalysis.user_id == user_id)
+            .update(
+                {
+                    "status": 'generating_scripts'
+                },
+                synchronize_session=False,
+            )
+        )
+        
+        db.commit()
 
         scripts_playwright_prompt = AiUtils.build_playwright_script_prompt(
             analysis=analysis_payload,

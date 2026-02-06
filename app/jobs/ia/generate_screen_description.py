@@ -36,6 +36,19 @@ def generate_screen_description(*, analysis_id: int, user_id: int):
         if not isinstance(analysis_payload, dict):
             analysis_payload = analysis_payload.to_dict()
 
+        updated_status = (
+            db.query(QaAnalysis)
+            .filter(QaAnalysis.id == analysis_id, QaAnalysis.user_id == user_id)
+            .update(
+                {
+                    "status": 'generating'
+                },
+                synchronize_session=False,
+            )
+        )
+        
+        db.commit()
+
         descriptions = explorer_service.generate_screen_descriptions(
             analysis=analysis_payload
         )
