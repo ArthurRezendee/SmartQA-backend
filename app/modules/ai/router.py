@@ -13,7 +13,7 @@ router = APIRouter(
 
 controller = AiController()
 
-
+# casos de teste
 @router.get("/testCase/{analysis_id}")
 async def generate_test_cases(
     analysis_id: int,
@@ -36,7 +36,7 @@ async def generate_test_cases(
             detail="Erro interno ao gerar casos de teste"
         )
         
-        
+# testes automatizados     
 @router.get("/scriptsPlaywright/{analysis_id}")
 async def generate_scripts_playwright(
     analysis_id: int,
@@ -57,4 +57,27 @@ async def generate_scripts_playwright(
         raise HTTPException(
             status_code=500,
             detail="Erro interno ao gerar scripts playwright" + e
+        )
+
+# documentacao
+@router.get("/documentation/{analysis_id}")
+async def generate_documentation(
+    analysis_id: int,
+    user_id: int = Depends(get_current_user_id)
+):
+    try:
+        result = await controller.generate_documentation(
+            analysis_id=analysis_id,
+            user_id=user_id
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Erro interno ao gerar documentação" + str(e)
         )

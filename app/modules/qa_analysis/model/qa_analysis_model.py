@@ -46,4 +46,11 @@ class QaAnalysis(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    
+    documentations = relationship(
+        "Documentation",
+        back_populates="qa_analysis",
+        cascade="all, delete-orphan",
+    )
+
 

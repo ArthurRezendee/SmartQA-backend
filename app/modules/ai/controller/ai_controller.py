@@ -18,3 +18,9 @@ class AiController(BaseController):
             analysis_id=analysis_id,
             user_id=user_id
         )
+        
+    async def generate_documentation(self, analysis_id: int, user_id: int):
+        return await self.service.generate_documentation(
+            analysis_id=analysis_id,
+            user_id=user_id
+        )

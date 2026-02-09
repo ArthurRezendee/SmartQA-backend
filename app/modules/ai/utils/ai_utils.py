@@ -650,3 +650,134 @@ REGRAS IMPORTANTES:
     """.strip()
 
         return textwrap.dedent(prompt).strip()
+
+
+    def build_docs_prompt(analysis: Dict[str, Any]) -> str:
+        """
+        Monta um prompt para gerar documentação funcional
+        estruturada em Markdown, pronta para exportação
+        para Word / Pages / Google Docs.
+        """
+
+        def s(value: Optional[Any], fallback: str = "") -> str:
+            if value is None:
+                return fallback
+            v = str(value).strip()
+            return v if v else fallback
+
+        analysis_id = s(analysis.get("id"), "N/A")
+        name = s(analysis.get("name"), "Sem nome")
+        target_url = s(analysis.get("target_url"), "N/A")
+        description = s(analysis.get("description"), "")
+        screen_context = s(analysis.get("screen_context"), "")
+        documentation_description = s(analysis.get("documentation_description"), "")
+
+        prompt = f"""
+    Você é um **Analista de Sistemas Sênior / QA Funcional** especializado em
+    documentação funcional de sistemas web.
+
+    Seu objetivo é gerar uma **DOCUMENTAÇÃO FUNCIONAL CLARA, COMPLETA E BEM ESTRUTURADA**
+    para a tela descrita abaixo.
+
+    Essa documentação será **exportada para Word / Pages / Google Docs**, portanto:
+
+    - Utilize **Markdown simples e semântico**
+    - Use `#` apenas para o título principal do documento
+    - Use `##` para seções principais
+    - Use `###` para subseções
+    - Use listas simples com `-`
+    - NÃO use emojis
+    - NÃO use HTML
+    - NÃO use tabelas complexas
+    - NÃO use formatação decorativa excessiva
+    - Clareza e organização são prioridade absoluta
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    CONTEXTO DA ANÁLISE
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    - Analysis ID: {analysis_id}
+    - Nome da tela / feature: {name}
+    - URL da tela: {target_url}
+
+    Descrição geral:
+    {description}
+
+    Contexto da tela:
+    {screen_context}
+
+    Instruções específicas:
+    {documentation_description}
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    O QUE VOCÊ DEVE GERAR
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Gere uma documentação funcional completa **EXCLUSIVAMENTE em Markdown**,
+    seguindo exatamente a estrutura abaixo.
+
+    Não invente regras.
+    Não faça suposições fora do contexto.
+    Não escreva código.
+    Não cite ferramentas de teste.
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ESTRUTURA OBRIGATÓRIA
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    # Documentação Funcional – {name}
+
+    ## 1. Visão Geral da Tela
+    - Objetivo principal da tela
+    - Público-alvo (tipo de usuário)
+
+    ## 2. Elementos da Interface
+    Liste todos os elementos visíveis da tela.
+
+    Para cada elemento relevante, utilize subseções.
+
+    ### Nome do Elemento
+    - Tipo do elemento
+    - Finalidade
+    - Observações importantes
+
+    ## 3. Comportamento dos Elementos
+    Descreva como cada elemento interativo se comporta.
+
+    ### Nome do Elemento
+    - Ação ao interagir
+    - Estados possíveis
+    - Restrições
+
+    ## 4. Fluxos Funcionais
+
+    ### Fluxo Principal
+    Passo a passo do fluxo esperado (happy path).
+
+    ### Fluxos Alternativos
+    Descreva variações possíveis do fluxo.
+
+    ### Fluxos de Erro
+    Descreva comportamentos em cenários inválidos.
+
+    ## 5. Regras de Negócio
+    Liste regras explícitas ou implícitas:
+    - Validações
+    - Dependências
+    - Condições obrigatórias
+
+    ## 6. Mensagens e Feedback ao Usuário
+    - Mensagens de sucesso
+    - Mensagens de erro
+    - Mensagens de validação
+    - Feedback visual relevante
+
+    ## 7. Observações Importantes
+    - Pontos de atenção para QA
+    - Limitações conhecidas
+    - Ambiguidades encontradas
+
+    Gere a documentação agora.
+    """
+
+        return prompt.strip()

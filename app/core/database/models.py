@@ -13,3 +13,6 @@ import app.modules.test_case.model.test_case_step_model
 # Playwright
 import app.modules.playwright.model.playwright_script_model
 
+# Documentation
+import app.modules.documentation.model.documentation_model
+
