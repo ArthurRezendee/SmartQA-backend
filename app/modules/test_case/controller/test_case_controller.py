@@ -335,7 +335,7 @@ class TestCaseController(BaseController):
             tc.deleted_at = datetime.datetime.utcnow()
             db.commit()
 
-            return {"status": True, "message": "caso de teste apagado com sucesso", "data": {"id": tc.id}}
+            return {"status": True, "message": "caso de teste apagado com sucesso", "data": self._serialize_test_case(tc)}
 
         except Exception as e:
             db.rollback()
@@ -357,13 +357,13 @@ class TestCaseController(BaseController):
             if not tc:
                 return {"status": False, "message": "caso de teste não encontrado", "data": None}
 
-            if tc.deleted_at:
+            if not tc.deleted_at:
                 return {"status": False, "message": "caso de teste não está apagado", "data": None}
 
             tc.deleted_at = None
             db.commit()
 
-            return {"status": True, "message": "caso de teste recuperado com sucesso", "data": {"id": tc.id}}
+            return {"status": True, "message": "caso de teste recuperado com sucesso", "data": self._serialize_test_case(tc)}
 
         except Exception as e:
             db.rollback()
