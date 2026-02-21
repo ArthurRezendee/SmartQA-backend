@@ -22,6 +22,8 @@ from app.modules.test_case.model.test_case_step_model import TestCaseStep
 from app.modules.user.model.process_notification_model import ProcessNotification
 from app.modules.playwright.model.playwright_script_model import PlaywrightScript
 from app.modules.documentation.model.documentation_model import Documentation
+from app.modules.billing.model.billing_account_model import BillingAccount
+from app.modules.plans.model.plan_model import Plan
 
 
 config = context.config
