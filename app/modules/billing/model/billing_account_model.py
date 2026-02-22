@@ -9,7 +9,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 
-
 class BillingAccount(Base):
     __tablename__ = "billing_accounts"
 
@@ -24,7 +23,7 @@ class BillingAccount(Base):
     # Se for organization (futuro)
     organization_id = Column(Integer, nullable=True)
 
-    plan = relationship("Plan", backref="billing_accounts")
+    plan = relationship("Plan", back_populates="billing_accounts")
 
     # ---- Controle de ciclo ----
     current_period_start = Column(DateTime, nullable=True)

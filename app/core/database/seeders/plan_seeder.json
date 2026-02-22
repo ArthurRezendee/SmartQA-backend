@@ -1,0 +1,55 @@
+[
+  {
+    "target_class": "app.modules.plans.model.plan_model:Plan",
+    "data": [
+     {
+        "slug": "free",
+        "name": "Free",
+        "description": "Plano gratuito para uso individual",
+        "analyses_per_month": 5,
+        "max_users": 1,
+        "price_cents": 4900,
+        "currency": "BRL",
+        "is_active": true,
+        "is_popular": false,
+        "display_order": 1
+      },
+      {
+        "slug": "starter",
+        "name": "Starter",
+        "description": "Ideal para quem está começando",
+        "analyses_per_month": 50,
+        "max_users": 1,
+        "price_cents": 4900,
+        "currency": "BRL",
+        "is_active": true,
+        "is_popular": false,
+        "display_order": 1
+      },
+      {
+        "slug": "pro",
+        "name": "Pro",
+        "description": "Para times em crescimento",
+        "analyses_per_month": 500,
+        "max_users": 5,
+        "price_cents": 14900,
+        "currency": "BRL",
+        "is_active": true,
+        "is_popular": true,
+        "display_order": 2
+      },
+      {
+        "slug": "enterprise",
+        "name": "Enterprise",
+        "description": "Plano para grandes organizações",
+        "analyses_per_month": 999999,
+        "max_users": 999,
+        "price_cents": 49900,
+        "currency": "BRL",
+        "is_active": true,
+        "is_popular": false,
+        "display_order": 3
+      }
+    ]
+  }
+]

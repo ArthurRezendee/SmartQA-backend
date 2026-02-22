@@ -499,6 +499,17 @@ def db_migrate():
 @app.command("db:rollback")
 def db_rollback():
     subprocess.run(["alembic", "downgrade", "-1"])
+    
+@app.command("db:seed")
+def db_seed():
+    """
+    Executa todos os seeders do sistema
+    """
+    subprocess.run([
+        "python",
+        "-c",
+        "from app.core.database.seeders.seed_all import run; run()"
+    ])
 
 
 # =====================================================

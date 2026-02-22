@@ -52,4 +52,4 @@ class Plan(Base):
     # ----------------------
     # RELACIONAMENTO
     # ----------------------
-    billing_accounts = relationship("BillingAccount", backref="plan")
+    billing_accounts = relationship("BillingAccount", back_populates="plan")
