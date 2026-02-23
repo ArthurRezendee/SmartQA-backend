@@ -1,6 +1,6 @@
 import os
 import uuid
-import json
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -10,9 +10,10 @@ from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
 from app.modules.qa_analysis.model.qa_document_model import QaDocument
 from app.modules.qa_analysis.model.access_credential_model import AccessCredential
 from app.modules.user.model.user_model import User
-
+from app.modules.billing.model.billing_account_model import BillingAccount
 
 BASE_PATH = "storage/qa_analyses"
+
 ALLOWED_TYPES = {
     "application/pdf",
     "text/plain",
@@ -21,6 +22,61 @@ ALLOWED_TYPES = {
 
 
 class QaAnalysisService:
+
+    async def _validate_and_consume_analysis_quota(
+        self,
+        db: AsyncSession,
+        user_id: int
+    ):
+        """
+        Valida se o usuário pode criar nova análise
+        e consome 1 unidade do ciclo atual.
+        """
+
+        result = await db.execute(
+            select(BillingAccount)
+            .options(selectinload(BillingAccount.plan))
+            .where(
+                BillingAccount.owner_user_id == user_id,
+                BillingAccount.is_active == True
+            )
+        )
+
+        billing = result.scalar_one_or_none()
+
+        if not billing:
+            raise ValueError("Usuário sem billing account ativa")
+
+        if billing.subscription_status != "active":
+            raise ValueError("Assinatura inativa")
+
+        # 🔁 Reset automático se ciclo expirou
+        now = datetime.utcnow()
+        if billing.current_period_end and now > billing.current_period_end:
+            billing.analyses_used_current_cycle = 0
+            billing.current_period_start = now
+            billing.current_period_end = now.replace(
+                day=now.day
+            )  # mantém padrão simples mensal
+
+        plan = billing.plan
+
+        allowed = (
+            plan.analyses_per_month
+            + billing.extra_credits
+            - billing.analyses_used_current_cycle
+        )
+
+        if allowed <= 0:
+            raise ValueError("Limite mensal de análises atingido")
+
+        # 🔥 Consome 1 análise
+        billing.analyses_used_current_cycle += 1
+
+        await db.flush()
+
+        return True
+
 
     async def list_by_user(self, db: AsyncSession, user_id: int):
         try:
@@ -57,6 +113,7 @@ class QaAnalysisService:
 
         except Exception as e:
             raise ValueError(f"Erro ao listar análises: {str(e)}")
+
 
     async def get_or_fail(self, db: AsyncSession, entity_id: int, user_id: int):
         try:
@@ -97,45 +154,7 @@ class QaAnalysisService:
 
         except Exception as e:
             raise ValueError(str(e))
-    
-    def get_or_fail_sync(self, db, entity_id: int, user_id: int):
-        try:
-            analysis = (
-                db.query(QaAnalysis)
-                .options(
-                    selectinload(QaAnalysis.documents),
-                    selectinload(QaAnalysis.access_credentials)
-                )
-                .filter(
-                    QaAnalysis.id == entity_id,
-                    QaAnalysis.user_id == user_id
-                )
-                .first()
-            )
 
-            if not analysis:
-                raise ValueError("Análise não encontrada")
-
-            return {
-                **analysis.to_dict(),
-                "documents": [
-                    {
-                        "id": doc.id,
-                        "type": doc.type,
-                        "path": doc.path
-                    } for doc in analysis.documents
-                ],
-                "access_credentials": [
-                    {
-                        "id": cred.id,
-                        "field_name": cred.field_name,
-                        "value": cred.value
-                    } for cred in analysis.access_credentials
-                ]
-            }
-
-        except Exception as e:
-            raise ValueError(str(e))
 
     async def create_with_documents(
         self,
@@ -145,12 +164,17 @@ class QaAnalysisService:
         access_credentials: list | None = None
     ):
         try:
-            user = await db.execute(
+            result_user = await db.execute(
                 select(User).where(User.id == data["user_id"])
             )
 
-            if not user.scalar_one_or_none():
+            if not result_user.scalar_one_or_none():
                 raise ValueError("Usuário não encontrado")
+
+            await self._validate_and_consume_analysis_quota(
+                db,
+                data["user_id"]
+            )
 
             analysis = QaAnalysis(**data)
             db.add(analysis)
@@ -182,7 +206,7 @@ class QaAnalysisService:
                 db.add(doc)
                 saved_docs.append(doc)
 
-            # 🔐 CREDENCIAIS (OPCIONAL)
+            # 🔐 CREDENCIAIS
             saved_credentials = []
 
             if access_credentials:
