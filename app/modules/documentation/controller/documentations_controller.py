@@ -4,6 +4,9 @@ from sqlalchemy import func
 from app.shared.controller import BaseController
 from app.modules.documentation.model.documentation_model import Documentation
 from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
+from fastapi.responses import StreamingResponse
+import io
+from app.modules.export.service.pdf_service import PDFService
 
 
 class DocumentationsController(BaseController):
@@ -113,3 +116,34 @@ class DocumentationsController(BaseController):
                 "content": documentation.content,
             },
         }
+        
+    def export(self, db: Session, documentation_id: int):
+
+        documentation = (
+            db.query(Documentation)
+            .filter(Documentation.id == documentation_id)
+            .first()
+        )
+
+        if not documentation:
+            return {
+                "status": False,
+                "message": "Documentação não encontrada",
+            }
+
+        content = documentation.content
+
+        pdf_service = PDFService()
+
+        pdf_bytes = pdf_service.generate_pdf(
+            content=content,
+            format_type="md" 
+        )
+
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=documentation_{documentation.id}.pdf"
+            }
+        )

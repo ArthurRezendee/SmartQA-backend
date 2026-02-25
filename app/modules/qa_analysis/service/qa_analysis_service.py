@@ -11,6 +11,7 @@ from app.modules.qa_analysis.model.qa_document_model import QaDocument
 from app.modules.qa_analysis.model.access_credential_model import AccessCredential
 from app.modules.user.model.user_model import User
 from app.modules.billing.model.billing_account_model import BillingAccount
+from app.modules.plans.model.plan_model import Plan
 
 BASE_PATH = "storage/qa_analyses"
 
@@ -130,6 +131,46 @@ class QaAnalysisService:
             )
 
             analysis = result.scalar_one_or_none()
+
+            if not analysis:
+                raise ValueError("Análise não encontrada")
+
+            return {
+                **analysis.to_dict(),
+                "documents": [
+                    {
+                        "id": doc.id,
+                        "type": doc.type,
+                        "path": doc.path
+                    } for doc in analysis.documents
+                ],
+                "access_credentials": [
+                    {
+                        "id": cred.id,
+                        "field_name": cred.field_name,
+                        "value": cred.value
+                    } for cred in analysis.access_credentials
+                ]
+            }
+
+        except Exception as e:
+            raise ValueError(str(e))
+        
+        
+    def get_or_fail_sync(self, db, entity_id: int, user_id: int):
+        try:
+            analysis = (
+                db.query(QaAnalysis)
+                .options(
+                    selectinload(QaAnalysis.documents),
+                    selectinload(QaAnalysis.access_credentials)
+                )
+                .filter(
+                    QaAnalysis.id == entity_id,
+                    QaAnalysis.user_id == user_id
+                )
+                .first()
+            )
 
             if not analysis:
                 raise ValueError("Análise não encontrada")

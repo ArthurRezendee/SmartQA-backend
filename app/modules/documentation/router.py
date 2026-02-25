@@ -78,3 +78,20 @@ def update_documentation(
         )
 
     return result
+
+
+# ============================
+# PUT – update manual
+# ============================
+
+@router.get("/export/{documentation_id}")
+def export_documentation(
+    documentation_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Exporta uma documentação para um formato específico (ex: PDF, DOCX)
+    """
+    result = controller.export(db, documentation_id)
+
+    return result
