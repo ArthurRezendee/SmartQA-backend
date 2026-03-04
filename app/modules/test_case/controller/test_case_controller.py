@@ -7,10 +7,13 @@ from app.modules.test_case.model.test_case_model import TestCase
 from app.modules.test_case.model.test_case_step_model import TestCaseStep
 from app.shared.controller import BaseController
 import datetime
-
+from app.modules.export.service.excel_service import ExcelService
+from fastapi.responses import StreamingResponse
+import io
 
 class TestCaseController(BaseController):
     def __init__(self):
+        self.excel_service = ExcelService()
         pass
 
     # =========================
@@ -422,5 +425,140 @@ class TestCaseController(BaseController):
         except Exception as e:
             db.rollback()
             return {"status": False, "message": f"erro ao recuperar step: {e}", "data": None}
+        finally:
+            db.close()
+            
+    async def export_test_cases(self, analyses_id: int):
+        db: Session = SessionLocal()
+        try:
+            test_cases: List[TestCase] = (
+                db.query(TestCase)
+                .options(joinedload(TestCase.steps))
+                .filter(
+                    TestCase.qa_analysis_id == analyses_id,
+                    TestCase.deleted_at.is_(None),
+                )
+                .order_by(TestCase.id.asc())
+                .all()
+            )
+
+            # ==============================
+            # MAPAS DE TRADUÇÃO
+            # ==============================
+
+            SCENARIO_MAP = {
+                "positive": "Positivo",
+                "negative": "Negativo",
+                "edge": "Caso Limite",
+            }
+
+            TEST_TYPE_MAP = {
+                "functional": "Funcional",
+                "regression": "Regressão",
+                "smoke": "Smoke",
+                "exploratory": "Exploratório",
+            }
+
+            PRIORITY_MAP = {
+                "low": "Baixa",
+                "medium": "Média",
+                "high": "Alta",
+                "critical": "Crítica",
+            }
+
+            RISK_MAP = {
+                "low": "Baixo",
+                "medium": "Médio",
+                "high": "Alto",
+            }
+
+            STATUS_MAP = {
+                "generated": "Gerado",
+                "reviewed": "Revisado",
+                "approved": "Aprovado",
+                "deprecated": "Obsoleto",
+            }
+
+            STEP_TYPE_MAP = {
+                "action": "Ação",
+                "assertion": "Validação",
+                "setup": "Preparação",
+            }
+
+            # ==============================
+            # FUNÇÕES AUXILIARES
+            # ==============================
+
+            def translate(value: str, mapping: dict) -> str:
+                if not value:
+                    return "-"
+                return mapping.get(value, value)
+
+            def format_bool(value: bool) -> str:
+                return "Sim" if value else "Não"
+
+            def format_text(value: str) -> str:
+                if not value:
+                    return "-"
+                return " ".join(value.strip().split())
+
+            # ==============================
+            # ABA 1 — TEST CASES
+            # ==============================
+
+            cases_data = []
+
+            for tc in test_cases:
+                cases_data.append({
+                    "ID": tc.id,
+                    "Título": format_text(tc.title),
+                    "Tipo": translate(tc.test_type, TEST_TYPE_MAP),
+                    "Cenário": translate(tc.scenario_type, SCENARIO_MAP),
+                    "Prioridade": translate(tc.priority, PRIORITY_MAP),
+                    "Risco": translate(tc.risk_level, RISK_MAP),
+                    "Status": translate(tc.status, STATUS_MAP),
+                    "Automação": format_bool(tc.has_automation),
+                    "Resultado Esperado": format_text(tc.expected_result),
+                })
+
+            # ==============================
+            # ABA 2 — STEPS
+            # ==============================
+
+            steps_data = []
+
+            for tc in test_cases:
+                for step in tc.steps:
+                    if step.deleted_at:
+                        continue
+
+                    steps_data.append({
+                        "Caso ID": tc.id,
+                        "Caso Título": format_text(tc.title),
+                        "Ordem": step.order,
+                        "Tipo Step": translate(step.step_type, STEP_TYPE_MAP),
+                        "Ação": format_text(step.action),
+                        "Resultado Esperado": format_text(step.expected_result),
+                    })
+
+            # ==============================
+            # GERAR EXCEL MULTI-SHEET
+            # ==============================
+
+            file = self.excel_service.generate_excel(
+                {
+                    "Test Cases": cases_data,
+                    "Steps": steps_data,
+                }
+            )
+
+            return StreamingResponse(
+                file,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f'attachment; filename="test_cases_{analyses_id}.xlsx"'
+                },
+            )
+
         finally:
             db.close()

@@ -57,3 +57,7 @@ async def step_restore(analyses_id: int, test_case_id: int, step_id: int):
         test_case_id=test_case_id,
         step_id=step_id,
     )
+    
+@router.get("/export", status_code=200)
+async def export_test_cases(analyses_id: int):
+    return await controller.export_test_cases(analyses_id=analyses_id)
