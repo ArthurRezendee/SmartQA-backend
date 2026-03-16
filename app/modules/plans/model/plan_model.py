@@ -14,6 +14,7 @@ class Plan(Base):
     name = Column(String(100), nullable=False)       # "Starter"
     slug = Column(String(100), unique=True, nullable=False)  # "starter"
     description = Column(Text, nullable=True)       # Texto curto do plano
+    scope = Column(String(50), nullable=False, default="individual")       # "individual" ou "organization"
 
     # ----------------------
     # LIMITES (regra de negócio)

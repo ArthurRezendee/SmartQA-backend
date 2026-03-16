@@ -21,7 +21,8 @@ class BillingAccount(Base):
     owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Se for organization (futuro)
-    organization_id = Column(Integer, nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    organization = relationship("Organization", back_populates="billing_account", uselist=False)
 
     plan = relationship("Plan", back_populates="billing_accounts")
 

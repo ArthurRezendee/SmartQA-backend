@@ -24,6 +24,8 @@ from app.modules.playwright.model.playwright_script_model import PlaywrightScrip
 from app.modules.documentation.model.documentation_model import Documentation
 from app.modules.billing.model.billing_account_model import BillingAccount
 from app.modules.plans.model.plan_model import Plan
+from app.modules.organization.model.organization_model import Organization
+from app.modules.organization.model.organization_member_model import OrganizationMember
 
 
 config = context.config

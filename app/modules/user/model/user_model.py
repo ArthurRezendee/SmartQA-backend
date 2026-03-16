@@ -6,6 +6,7 @@ from sqlalchemy import (
     Text,
 )
 from app.core.base import Base
+from sqlalchemy.orm import relationship
 
 class User(Base):
     __tablename__ = "users"
@@ -24,6 +25,12 @@ class User(Base):
     email_verified = Column(Boolean, default=False, nullable=False)
 
     role = Column(String(50), default="user", nullable=False)
+    
+    owned_organizations = relationship("Organization", foreign_keys="Organization.owner_id", back_populates="owner")
+    organization_memberships = relationship("OrganizationMember", foreign_keys="OrganizationMember.user_id", back_populates="user")
+    
+    analyses = relationship("QaAnalysis", back_populates="user", foreign_keys="QaAnalysis.user_id")
+
 
     def __repr__(self):
         return f"<User id={self.id} email={self.email}>"
