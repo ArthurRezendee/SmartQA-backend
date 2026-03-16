@@ -22,18 +22,18 @@ async def index():
 async def list_users(db=Depends(get_db)):
     return await controller.list_users(db)
 
-@router.get("/users/{entity_id}")
+@router.get("/{entity_id}")
 async def get_user(entity_id: int, db=Depends(get_db)):
     return await controller.get_user(db, entity_id)
 
-@router.post("/users")
+@router.post("/")
 async def create_user(data: UserCreate, db=Depends(get_db)):
     return await controller.create_user(db, data)
 
-@router.put("/users/{entity_id}")
+@router.put("/{entity_id}")
 async def update_user(entity_id: int, data: UserUpdate, db=Depends(get_db)):
     return await controller.update_user(db, entity_id, data)
 
-@router.delete("/users/{entity_id}")
+@router.delete("/{entity_id}")
 async def delete_user(entity_id: int, db=Depends(get_db)):
     return await controller.delete_user(db, entity_id)

@@ -8,6 +8,7 @@ from app.modules.ai.router import router as ai_router
 from app.modules.test_case.router import router as test_case_router
 from app.modules.playwright.router import router as playwright_router
 from app.modules.documentation.router import router as documentation_router
+from app.modules.user.router import router as user_router
 import app.core.database.models
 
 load_dotenv()
@@ -32,3 +33,4 @@ app.include_router(ai_router)
 app.include_router(test_case_router)
 app.include_router(playwright_router)
 app.include_router(documentation_router)
+app.include_router(user_router)
