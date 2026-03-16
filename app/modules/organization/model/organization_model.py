@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import relationship
 from app.core.base import Base
+from app.modules.organization.model.organization_member_model import OrganizationMember
 
 
 class Organization(Base):
