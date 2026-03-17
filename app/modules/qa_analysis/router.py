@@ -39,6 +39,7 @@ async def create_qa_analysis(
     description: str | None = Form(None),
     screen_context: str | None = Form(None),
     access_credentials: str | None = Form(None),
+    organization_id: int | None = Form(None),
     documents: List[UploadFile] = File(default=[]),
     user_id: int = Depends(get_current_user_id),
     db=Depends(get_db)
@@ -52,11 +53,20 @@ async def create_qa_analysis(
             if not isinstance(credentials_list, list):
                 raise ValueError("access_credentials deve ser uma lista")
 
+        if organization_id:
+            owner_type = "organization"
+            owner_id = organization_id
+        else:
+            owner_type = "user"
+            owner_id = user_id
+
         return await controller.create_qa_analysis(
             db=db,
             data={
                 "name": name,
                 "user_id": user_id,
+                "owner_type": owner_type,
+                "owner_id": owner_id,
                 "target_url": target_url,
                 "description": description,
                 "screen_context": screen_context

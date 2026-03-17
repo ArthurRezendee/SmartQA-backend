@@ -16,3 +16,7 @@ import app.modules.playwright.model.playwright_script_model
 # Documentation
 import app.modules.documentation.model.documentation_model
 
+# Organization
+import app.modules.organization.model.organization_model
+import app.modules.organization.model.organization_member_model
+

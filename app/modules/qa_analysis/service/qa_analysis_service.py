@@ -27,26 +27,37 @@ class QaAnalysisService:
     async def _validate_and_consume_analysis_quota(
         self,
         db: AsyncSession,
-        user_id: int
+        user_id: int,
+        owner_type: str = "user",
+        owner_id: int | None = None
     ):
         """
-        Valida se o usuário pode criar nova análise
-        e consome 1 unidade do ciclo atual.
+        Valida se o dono (user ou organization) pode criar nova análise
+        e consome 1 unidade do ciclo atual da billing account correta.
         """
+
+        if owner_type == "organization" and owner_id:
+            billing_filter = (
+                BillingAccount.organization_id == owner_id,
+                BillingAccount.is_active == True
+            )
+        else:
+            billing_filter = (
+                BillingAccount.owner_user_id == user_id,
+                BillingAccount.is_active == True
+            )
 
         result = await db.execute(
             select(BillingAccount)
             .options(selectinload(BillingAccount.plan))
-            .where(
-                BillingAccount.owner_user_id == user_id,
-                BillingAccount.is_active == True
-            )
+            .where(*billing_filter)
         )
 
         billing = result.scalar_one_or_none()
 
         if not billing:
-            raise ValueError("Usuário sem billing account ativa")
+            owner_label = "Organização" if owner_type == "organization" else "Usuário"
+            raise ValueError(f"{owner_label} sem billing account ativa")
 
         if billing.subscription_status != "active":
             raise ValueError("Assinatura inativa")
@@ -214,7 +225,9 @@ class QaAnalysisService:
 
             await self._validate_and_consume_analysis_quota(
                 db,
-                data["user_id"]
+                user_id=data["user_id"],
+                owner_type=data.get("owner_type", "user"),
+                owner_id=data.get("owner_id", data["user_id"])
             )
 
             analysis = QaAnalysis(**data)
