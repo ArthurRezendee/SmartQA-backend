@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
 from typing import List
 import json
 
@@ -17,10 +17,13 @@ controller = QaAnalysisController()
 
 @router.get("/")
 async def list_qa_analysis(
+    owner_type: str = Query("user", pattern="^(user|organization)$"),
+    owner_id: int | None = Query(None),
     user_id: int = Depends(get_current_user_id),
     db=Depends(get_db)
 ):
-    return await controller.list_qa_analysis(db, user_id)
+    resolved_owner_id = owner_id if owner_id is not None else user_id
+    return await controller.list_qa_analysis(db, user_id, owner_type, resolved_owner_id)
 
 
 @router.get("/{entity_id}")

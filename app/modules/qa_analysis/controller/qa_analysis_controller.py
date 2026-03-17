@@ -6,8 +6,8 @@ class QaAnalysisController:
     def __init__(self):
         self.service = QaAnalysisService()
 
-    async def list_qa_analysis(self, db, user_id: int):
-        return await self.service.list_by_user(db, user_id)
+    async def list_qa_analysis(self, db, user_id: int, owner_type: str = "user", owner_id: int | None = None):
+        return await self.service.list_by_owner(db, user_id, owner_type, owner_id or user_id)
 
     async def get_qa_analysis(self, db, entity_id: int, user_id: int):
         return await self.service.get_or_fail(db, entity_id, user_id)

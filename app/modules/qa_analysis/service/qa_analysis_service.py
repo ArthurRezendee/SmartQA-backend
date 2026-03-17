@@ -91,6 +91,9 @@ class QaAnalysisService:
 
 
     async def list_by_user(self, db: AsyncSession, user_id: int):
+        return await self.list_by_owner(db, user_id, "user", user_id)
+
+    async def list_by_owner(self, db: AsyncSession, user_id: int, owner_type: str, owner_id: int):
         try:
             result = await db.execute(
                 select(QaAnalysis)
@@ -98,7 +101,10 @@ class QaAnalysisService:
                     selectinload(QaAnalysis.documents),
                     selectinload(QaAnalysis.access_credentials)
                 )
-                .where(QaAnalysis.user_id == user_id)
+                .where(
+                    QaAnalysis.owner_type == owner_type,
+                    QaAnalysis.owner_id == owner_id
+                )
             )
 
             analyses = result.scalars().unique().all()
