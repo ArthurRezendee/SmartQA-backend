@@ -1,17 +1,19 @@
 import asyncio
+import logging
+import time
 from browser_use import Agent, Browser, ChatBrowserUse
 from app.modules.ai.utils.ai_utils import AiUtils
+
+logger = logging.getLogger(__name__)
+
+_BROWSER_EXECUTABLE = "/root/.cache/ms-playwright/chromium-1200/chrome-linux/chrome"
+_RETRY_DELAY_SECONDS = 5
 
 
 class ScreenExplorerService:
     def generate_screen_descriptions(self, *, analysis: dict) -> dict:
         credentials_block = AiUtils.build_credentials_block(
             analysis.get("access_credentials") or []
-        )
-
-        browser = Browser(
-            headless=True,
-            executable_path="/root/.cache/ms-playwright/chromium-1200/chrome-linux/chrome",
         )
 
         llm = ChatBrowserUse()
@@ -45,14 +47,24 @@ class ScreenExplorerService:
             }
 
         def _run_agent(task: str) -> str:
-            agent = Agent(
-                task=task,
-                browser=browser,
-                llm=llm,
+            # Cria um browser novo a cada tentativa para evitar estado corrompido
+            browser = Browser(
+                headless=True,
+                executable_path=_BROWSER_EXECUTABLE,
             )
-
-            history = asyncio.run(agent.run())
-            result = (history.final_result() or "").strip()
+            try:
+                agent = Agent(
+                    task=task,
+                    browser=browser,
+                    llm=llm,
+                )
+                history = asyncio.run(agent.run())
+                result = (history.final_result() or "").strip()
+            finally:
+                try:
+                    asyncio.run(browser.close())
+                except Exception:
+                    pass
 
             if not result:
                 raise ValueError("Não foi possível obter retorno do BrowserUse")
@@ -93,6 +105,11 @@ IMPORTANTE (ANTI-TRUNCAMENTO):
 
             except Exception as e:
                 last_error = e
-                continue
+                logger.warning(
+                    f"[ScreenExplorer] Tentativa {attempt}/3 falhou: {e}"
+                    + (f" — aguardando {_RETRY_DELAY_SECONDS}s antes de nova tentativa" if attempt < 3 else "")
+                )
+                if attempt < 3:
+                    time.sleep(_RETRY_DELAY_SECONDS)
 
         raise ValueError(f"Falha ao obter descrições válidas do BrowserUse: {last_error}")

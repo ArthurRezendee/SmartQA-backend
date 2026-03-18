@@ -6,21 +6,32 @@ class AiController(BaseController):
 
     def __init__(self):
         self.service = AiService()
+        
+    async def analyze_target(self, analysis_id: int, user_id: int, requirements: list[str]):
+        return await self.service.analyze_target(
+            analysis_id=analysis_id,
+            user_id=user_id,
+            requirements=requirements
+        )
 
-    async def generate_test_cases(self, analysis_id: int, user_id: int):
+    async def generate_test_cases(self, db, analysis_id: int, user_id: int):
         return await self.service.generate_test_cases(
-            analysis_id=analysis_id,
-            user_id=user_id
+            db=db, analysis_id=analysis_id, user_id=user_id
         )
-        
-    async def generate_scripts_playwright(self, analysis_id: int, user_id: int):
+
+    async def generate_scripts_playwright(self, db, analysis_id: int, user_id: int):
         return await self.service.generate_scripts_playwright(
-            analysis_id=analysis_id,
-            user_id=user_id
+            db=db, analysis_id=analysis_id, user_id=user_id
         )
-        
-    async def generate_documentation(self, analysis_id: int, user_id: int):
+
+    async def generate_documentation(self, db, analysis_id: int, user_id: int):
         return await self.service.generate_documentation(
+            db=db, analysis_id=analysis_id, user_id=user_id
+        )
+
+    async def get_analysis_jobs(self, db, analysis_id: int, user_id: int):
+        return await self.service.get_analysis_jobs(
+            db=db,
             analysis_id=analysis_id,
-            user_id=user_id
+            user_id=user_id,
         )

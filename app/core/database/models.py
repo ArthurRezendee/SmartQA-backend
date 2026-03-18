@@ -20,3 +20,6 @@ import app.modules.documentation.model.documentation_model
 import app.modules.organization.model.organization_model
 import app.modules.organization.model.organization_member_model
 
+# Analysis Jobs
+import app.modules.qa_analysis.model.analysis_job_model
+

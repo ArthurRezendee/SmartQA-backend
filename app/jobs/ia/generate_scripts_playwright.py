@@ -9,7 +9,7 @@ from app.modules.ai.utils.ai_utils import AiUtils
 
 from app.modules.ai.service.scripts_playwright_service import ScriptsPlaywrightAgent
 from app.modules.playwright.model.playwright_script_model import PlaywrightScript
-from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis  
+from app.jobs.ia._jobs import mark_job_running, mark_job_completed, mark_job_error
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,9 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
     db = SessionLocal()
 
     try:
+        mark_job_running(db, analysis_id, "scripts")
+        db.commit()
+
         qa_service = QaAnalysisService()
 
         analysis_payload = qa_service.get_or_fail_sync(
@@ -39,19 +42,6 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
         if not isinstance(analysis_payload, dict):
             analysis_payload = analysis_payload.to_dict()
         
-        updated_status = (
-            db.query(QaAnalysis)
-            .filter(QaAnalysis.id == analysis_id, QaAnalysis.user_id == user_id)
-            .update(
-                {
-                    "status": 'generating_scripts'
-                },
-                synchronize_session=False,
-            )
-        )
-        
-        db.commit()
-
         scripts_playwright_prompt = AiUtils.build_playwright_script_prompt(
             analysis=analysis_payload,
         )
@@ -92,9 +82,7 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
 
         db.add(script_row)
 
-        analysis = db.query(QaAnalysis).filter(QaAnalysis.id == analysis_id).first()
-        analysis.status = "scripts_generated"
-
+        mark_job_completed(db, analysis_id, "scripts")
         db.commit()
 
         logger.info(
@@ -114,9 +102,19 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
             "status": "completed",
         }
 
-    except Exception:
+    except Exception as e:
         db.rollback()
         logger.exception("❌ Erro no job generate_scripts_playwright")
+
+        retries_done = getattr(generate_scripts_playwright.request, "retries", 0)
+        max_retries = generate_scripts_playwright.max_retries or 0
+        if retries_done >= max_retries:
+            try:
+                mark_job_error(db, analysis_id, "scripts", e)
+                db.commit()
+            except Exception:
+                db.rollback()
+
         raise
 
     finally:

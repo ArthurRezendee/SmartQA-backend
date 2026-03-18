@@ -31,6 +31,7 @@ class QaAnalysis(Base):
     documentation_description = Column(Text, nullable=True)
     uiux_description = Column(Text, nullable=True)
 
+    # draft | generating | processing | completed | error
     status = Column(String(50), nullable=False, default="draft")
 
     # ----------------------
@@ -75,4 +76,11 @@ class QaAnalysis(Base):
         "Documentation",
         back_populates="qa_analysis",
         cascade="all, delete-orphan",
+    )
+
+    jobs = relationship(
+        "AnalysisJob",
+        back_populates="analysis",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )

@@ -1,13 +1,14 @@
 from app.core.celery_app import celery_app
 import logging
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.modules.ai.service.tests_generator_service import TestCaseAgent
+from app.modules.ai.utils.ai_utils import AiUtils
 from app.core.database.sync_db import SessionLocal
 
-from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis  # <-- IMPORTA
+from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
 from app.modules.test_case.model.test_case_model import TestCase
 from app.modules.test_case.model.test_case_step_model import TestCaseStep
+from app.jobs.ia._jobs import mark_job_running, mark_job_completed, mark_job_error
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ def normalize_enum(value: str, allowed: set, default: str) -> str:
 def safe_text(value):
     if value is None:
         return None
-    v = str(value).strip()
+    v = str(value).strip().replace('\x00', '')
     return v if v else None
 
 
@@ -41,30 +42,45 @@ def safe_text(value):
 def generate_test_case(*args, **kwargs):
     logger.info(f"🚀 Job GenerateTestCase iniciado | kwargs={kwargs}")
 
-    qa_analysis_id = kwargs.get("qa_analysis_id")
-    test_case_prompt = kwargs.get("test_case_prompt")
+    qa_analysis_id = kwargs.get("analysis_id")
     ai_model_used = kwargs.get("ai_model_used", "gpt-4.1-mini")
 
     if not qa_analysis_id:
-        raise ValueError("qa_analysis_id não informado")
-    if not test_case_prompt:
-        raise ValueError("test_case_prompt não informado")
+        raise ValueError("analysis_id não informado")
 
     db = SessionLocal()
 
     try:
         # ==========================================================
-        # 0) status = generating
+        # 0) busca análise e monta prompt
         # ==========================================================
+        mark_job_running(db, qa_analysis_id, "test_cases")
+        db.commit()
+
         analysis = db.query(QaAnalysis).filter(QaAnalysis.id == qa_analysis_id).first()
         if not analysis:
             raise ValueError(f"QaAnalysis {qa_analysis_id} não encontrada")
 
-        analysis.status = "generating"
-        db.flush()
+        analysis_payload = analysis.to_dict()
+
+        if not analysis_payload.get("tests_description"):
+            raise ValueError("tests_description não encontrado — descrição ainda não foi gerada")
+
+        documents_block = None
+        documents = analysis_payload.get("documents")
+        if documents:
+            documents_text = AiUtils.read_documents_with_docling(documents=documents)
+            if documents_text and documents_text.strip():
+                documents_block = AiUtils.build_documents_block(documents_text)
+
+        test_case_prompt = AiUtils.build_test_case_prompt(
+            ui_description=analysis_payload["tests_description"],
+            analysis=analysis_payload,
+            documents_block=documents_block,
+        )
 
         # ==========================================================
-        # 1) chama IA
+        # 2) chama IA
         # ==========================================================
         agent = TestCaseAgent(model=ai_model_used)
         test_cases_payload = agent.generate(test_case_prompt)
@@ -75,7 +91,7 @@ def generate_test_case(*args, **kwargs):
         logger.info(f"[GenerateTestCase] IA retornou {len(test_cases_payload)} casos")
 
         # ==========================================================
-        # 2) persistência
+        # 3) persistência
         # ==========================================================
         created_test_cases: list[TestCase] = []
 
@@ -111,7 +127,7 @@ def generate_test_case(*args, **kwargs):
         db.flush()
 
         # ==========================================================
-        # 3) steps
+        # 4) steps
         # ==========================================================
         steps_to_create: list[TestCaseStep] = []
 
@@ -142,10 +158,9 @@ def generate_test_case(*args, **kwargs):
             db.bulk_save_objects(steps_to_create)
 
         # ==========================================================
-        # 4) status = generated
+        # 5) marca job como concluído (verifica se batch todo terminou)
         # ==========================================================
-        analysis.status = "generated"
-
+        mark_job_completed(db, qa_analysis_id, "test_cases")
         db.commit()
 
         logger.info(
@@ -155,32 +170,19 @@ def generate_test_case(*args, **kwargs):
             f"steps_salvos={len(steps_to_create)}"
         )
 
-    except SQLAlchemyError as e:
-        db.rollback()
-
-        try:
-            analysis = db.query(QaAnalysis).filter(QaAnalysis.id == qa_analysis_id).first()
-            if analysis:
-                analysis.status = "error"
-                db.commit()
-        except Exception:
-            db.rollback()
-
-        logger.exception(f"[GenerateTestCase] Erro SQLAlchemy: {e}")
-        raise
-
     except Exception as e:
         db.rollback()
+        logger.exception(f"[GenerateTestCase] Falha: {e}")
 
-        try:
-            analysis = db.query(QaAnalysis).filter(QaAnalysis.id == qa_analysis_id).first()
-            if analysis:
-                analysis.status = "error"
+        retries_done = getattr(generate_test_case.request, "retries", 0)
+        max_retries = generate_test_case.max_retries or 0
+        if retries_done >= max_retries:
+            try:
+                mark_job_error(db, qa_analysis_id, "test_cases", e)
                 db.commit()
-        except Exception:
-            db.rollback()
+            except Exception:
+                db.rollback()
 
-        logger.exception(f"[GenerateTestCase] Falha geral: {e}")
         raise
 
     finally:

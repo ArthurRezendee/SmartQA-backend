@@ -26,6 +26,7 @@ from app.modules.billing.model.billing_account_model import BillingAccount
 from app.modules.plans.model.plan_model import Plan
 from app.modules.organization.model.organization_model import Organization
 from app.modules.organization.model.organization_member_model import OrganizationMember
+from app.modules.qa_analysis.model.analysis_job_model import AnalysisJob
 
 
 config = context.config

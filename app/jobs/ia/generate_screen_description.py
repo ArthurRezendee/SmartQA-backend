@@ -4,18 +4,19 @@ import app.core.database.models
 from app.core.celery_app import celery_app
 from app.core.database.sync_db import SessionLocal
 from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
+from app.modules.qa_analysis.model.analysis_job_model import AnalysisJob
 from app.modules.qa_analysis.service.qa_analysis_service import QaAnalysisService
 from app.modules.ai.service.screen_explorer_service import ScreenExplorerService
-from app.modules.ai.utils.ai_utils import AiUtils
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(
     name="jobs.ia.generate_screen_description",
-    autoretry_for=(),
+    autoretry_for=(ValueError, RuntimeError),
+    retry_kwargs={"max_retries": 2, "countdown": 60},
 )
-def generate_screen_description(*, analysis_id: int, user_id: int):
+def generate_screen_description(*, analysis_id: int, user_id: int, requirements: list = None):
     logger.info(
         "🚀 Job GenerateScreenDescription iniciado",
         extra={"analysis_id": analysis_id, "user_id": user_id},
@@ -36,17 +37,9 @@ def generate_screen_description(*, analysis_id: int, user_id: int):
         if not isinstance(analysis_payload, dict):
             analysis_payload = analysis_payload.to_dict()
 
-        updated_status = (
-            db.query(QaAnalysis)
-            .filter(QaAnalysis.id == analysis_id, QaAnalysis.user_id == user_id)
-            .update(
-                {
-                    "status": 'generating'
-                },
-                synchronize_session=False,
-            )
-        )
-        
+        db.query(QaAnalysis).filter(
+            QaAnalysis.id == analysis_id, QaAnalysis.user_id == user_id
+        ).update({"status": "generating"}, synchronize_session=False)
         db.commit()
 
         descriptions = explorer_service.generate_screen_descriptions(
@@ -69,43 +62,58 @@ def generate_screen_description(*, analysis_id: int, user_id: int):
 
         if updated_rows != 1:
             raise RuntimeError(
-                f"Falha ao persistir descrições: updated_rows={updated_rows} analysis_id={analysis_id} user_id={user_id}"
+                f"Falha ao persistir descrições: updated_rows={updated_rows} analysis_id={analysis_id}"
             )
 
         db.commit()
 
-        documents_block = None
-        documents_text = None
+        # -------------------------------------------------------
+        # Monta os sub-jobs a disparar
+        # -------------------------------------------------------
+        available_jobs = {
+            "test_cases": "jobs.ia.generate_test_case",
+            "scripts": "jobs.ia.generate_scripts_playwright",
+            "documentation": "jobs.ia.generate_documentation",
+        }
 
-        documents = analysis_payload.get("documents")
+        targets = requirements if requirements else list(available_jobs.keys())
+        valid_targets = [req for req in targets if req in available_jobs]
 
-        if documents:
-            documents_text = AiUtils.read_documents_with_docling(documents=documents)
-            if documents_text and documents_text.strip():
-                documents_block = AiUtils.build_documents_block(documents_text)
+        # Limpa jobs anteriores (idempotência em caso de retry) e cria novos como pending
+        db.query(AnalysisJob).filter(AnalysisJob.qa_analysis_id == analysis_id).delete()
+        for job_type in valid_targets:
+            db.add(AnalysisJob(qa_analysis_id=analysis_id, job_type=job_type, status="pending"))
 
-        test_case_prompt = AiUtils.build_test_case_prompt(
-            ui_description=descriptions["tests_description"],
-            analysis=analysis_payload,
-            documents_block=documents_block,
+        db.query(QaAnalysis).filter(QaAnalysis.id == analysis_id).update(
+            {"status": "processing"}, synchronize_session=False
         )
+        db.commit()
 
-        celery_app.send_task(
-            "jobs.ia.generate_test_case",
-            kwargs={
-                "qa_analysis_id": analysis_id,
-                "user_id": user_id,
-                "test_case_prompt": test_case_prompt,
-            },
-        )
+        for req in valid_targets:
+            celery_app.send_task(
+                available_jobs[req],
+                kwargs={"analysis_id": analysis_id, "user_id": user_id},
+            )
 
         logger.info("✅ Job GenerateScreenDescription finalizado com sucesso")
-
-        return {"analysis_id": analysis_id, "status": "completed"}
+        return {"analysis_id": analysis_id, "status": "processing", "jobs": valid_targets}
 
     except Exception:
         db.rollback()
         logger.exception("❌ Erro no job GenerateScreenDescription")
+
+        # Só marca status=error se esgotou todos os retries
+        retries_done = getattr(generate_screen_description.request, "retries", 0)
+        max_retries = generate_screen_description.max_retries or 0
+        if retries_done >= max_retries:
+            try:
+                db.query(QaAnalysis).filter(QaAnalysis.id == analysis_id).update(
+                    {"status": "error"}, synchronize_session=False
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+
         raise
 
     finally:

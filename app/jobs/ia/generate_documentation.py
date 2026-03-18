@@ -7,9 +7,9 @@ from app.core.celery_app import celery_app
 from app.core.database.sync_db import SessionLocal
 from app.modules.qa_analysis.service.qa_analysis_service import QaAnalysisService
 from app.modules.ai.utils.ai_utils import AiUtils
-from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
 from app.modules.ai.service.docs_generator_service import DocumentationAgent
 from app.modules.documentation.model.documentation_model import Documentation
+from app.jobs.ia._jobs import mark_job_running, mark_job_completed, mark_job_error
 from sqlalchemy import func
 
 
@@ -29,6 +29,9 @@ def generate_documentation(*, analysis_id: int, user_id: int):
     db = SessionLocal()
 
     try:
+        mark_job_running(db, analysis_id, "documentation")
+        db.commit()
+
         qa_service = QaAnalysisService()
 
         analysis_payload = qa_service.get_or_fail_sync(
@@ -39,16 +42,6 @@ def generate_documentation(*, analysis_id: int, user_id: int):
 
         if not isinstance(analysis_payload, dict):
             analysis_payload = analysis_payload.to_dict()
-
-        # Atualiza status → generating_docs
-        db.query(QaAnalysis).filter(
-            QaAnalysis.id == analysis_id,
-            QaAnalysis.user_id == user_id,
-        ).update(
-            {"status": "generating_docs"},
-            synchronize_session=False,
-        )
-        db.commit()
 
         # Gera prompt
         docs_prompt = AiUtils.build_docs_prompt(
@@ -97,10 +90,7 @@ def generate_documentation(*, analysis_id: int, user_id: int):
 
         db.add(documentation)
 
-        # Atualiza status final do analysis
-        analysis = db.query(QaAnalysis).filter(QaAnalysis.id == analysis_id).first()
-        analysis.status = "docs_generated"
-
+        mark_job_completed(db, analysis_id, "documentation")
         db.commit()
 
         logger.info(
@@ -114,9 +104,19 @@ def generate_documentation(*, analysis_id: int, user_id: int):
             "status": "completed",
         }
 
-    except Exception:
+    except Exception as e:
         db.rollback()
         logger.exception("❌ Erro no job generate_documentation")
+
+        retries_done = getattr(generate_documentation.request, "retries", 0)
+        max_retries = generate_documentation.max_retries or 0
+        if retries_done >= max_retries:
+            try:
+                mark_job_error(db, analysis_id, "documentation", e)
+                db.commit()
+            except Exception:
+                db.rollback()
+
         raise
 
     finally:
