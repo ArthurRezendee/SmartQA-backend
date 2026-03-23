@@ -1,7 +1,5 @@
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import resend
 from pathlib import Path
 from datetime import datetime
 
@@ -15,13 +13,12 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 
 class EmailService:
     def __init__(self):
-        self.smtp_host = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-        self.smtp_port = int(os.getenv("EMAIL_PORT", 587))
-        self.smtp_user = os.getenv("EMAIL_USER")
-        self.smtp_password = os.getenv("EMAIL_PASS")
+        api_key = os.getenv("RESEND_API_KEY")
+        if not api_key:
+            raise RuntimeError("RESEND_API_KEY precisa estar definido")
 
-        if not self.smtp_user or not self.smtp_password:
-            raise RuntimeError("EMAIL_USER e EMAIL_PASS precisam estar definidos")
+        resend.api_key = api_key
+        self.from_email = os.getenv("EMAIL_FROM", "SmartQA <noreply@smartqa.com.br>")
 
         self.env = Environment(
             loader=FileSystemLoader(TEMPLATES_DIR),
@@ -42,14 +39,11 @@ class EmailService:
             year=datetime.now().year,
         )
 
-        msg = MIMEMultipart()
-        msg["From"] = f"SmartQA <{self.smtp_user}>"
-        msg["To"] = to
-        msg["Subject"] = subject
+        params: resend.Emails.SendParams = {
+            "from": self.from_email,
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
 
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-            server.starttls()
-            server.login(self.smtp_user, self.smtp_password)
-            server.send_message(msg)
+        resend.Emails.send(params)

@@ -6,9 +6,15 @@ from app.modules.plans.model.plan_model import Plan
 from app.modules.billing.model.billing_account_model import BillingAccount
 from app.modules.billing.controller.billing_controller import BillingController
 
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    verify_email_confirmation_token,
+)
 from app.modules.auth.providers.google import verify_google_token
 from app.jobs.user.send_confirmation_email import send_confirmation_email
+import jwt
 
 
 class AuthService:
@@ -86,6 +92,24 @@ class AuthService:
 
         token = create_access_token({"sub": str(user.id)})
         return user, token
+
+    async def confirm_email(self, db: AsyncSession, token: str):
+        try:
+            user_id = verify_email_confirmation_token(token)
+        except jwt.InvalidTokenError:
+            raise ValueError("Token inválido ou expirado")
+
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise ValueError("Usuário não encontrado")
+
+        if user.email_verified:
+            raise ValueError("E-mail já confirmado")
+
+        user.email_verified = True
+        await db.commit()
 
     async def login_google(self, db: AsyncSession, id_token: str):
         google_user = await verify_google_token(id_token)

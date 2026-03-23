@@ -28,3 +28,8 @@ async def login(data: LoginSchema, db=Depends(get_db)):
 @router.post("/google")
 async def google(data: GoogleAuthSchema, db=Depends(get_db)):
     return await controller.google(db, data)
+
+
+@router.get("/confirm-email")
+async def confirm_email(token: str, db=Depends(get_db)):
+    return await controller.confirm_email(db, token)

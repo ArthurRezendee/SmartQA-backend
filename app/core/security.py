@@ -26,3 +26,20 @@ def create_access_token(data: dict):
         settings.SECRET_KEY,
         algorithm=settings.JWT_ALGORITHM
     )
+
+
+def create_email_confirmation_token(user_id: int) -> str:
+    payload = {
+        "sub": str(user_id),
+        "purpose": "email_confirmation",
+        "exp": datetime.utcnow() + timedelta(hours=24),
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def verify_email_confirmation_token(token: str) -> int:
+    """Retorna o user_id se válido, levanta jwt.InvalidTokenError caso contrário."""
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    if payload.get("purpose") != "email_confirmation":
+        raise jwt.InvalidTokenError("Token inválido")
+    return int(payload["sub"])

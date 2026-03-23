@@ -48,3 +48,10 @@ class AuthController(BaseController):
             print("❌ Google login error:", e)
             raise
 
+    async def confirm_email(self, db, token: str):
+        try:
+            await self.service.confirm_email(db, token)
+            return success("E-mail confirmado com sucesso")
+        except ValueError as e:
+            return error(str(e))
+
