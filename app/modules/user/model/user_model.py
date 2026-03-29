@@ -28,6 +28,9 @@ class User(Base):
     email_verification_code = Column(String(6), nullable=True)
     email_verification_expires_at = Column(DateTime(timezone=True), nullable=True)
 
+    password_reset_token = Column(String(64), nullable=True)
+    password_reset_expires_at = Column(DateTime(timezone=True), nullable=True)
+
     role = Column(String(50), default="user", nullable=False)
     
     owned_organizations = relationship("Organization", foreign_keys="Organization.owner_id", back_populates="owner")

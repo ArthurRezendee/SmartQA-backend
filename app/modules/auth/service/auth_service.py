@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,8 +15,10 @@ from app.core.security import (
     create_access_token,
     generate_verification_code,
 )
+from app.core.config import settings
 from app.modules.auth.providers.google import verify_google_token
 from app.jobs.user.send_confirmation_email import send_confirmation_email
+from app.jobs.user.send_password_reset_email import send_password_reset_email
 
 
 class AuthService:
@@ -118,6 +121,43 @@ class AuthService:
         user.email_verified = True
         user.email_verification_code = None
         user.email_verification_expires_at = None
+        await db.commit()
+
+    async def request_password_reset(self, db: AsyncSession, email: str):
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        # Sempre retorna sucesso para não vazar se o email existe ou não
+        if not user:
+            return
+
+        token = secrets.token_urlsafe(32)
+        user.password_reset_token = token
+        user.password_reset_expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+        await db.commit()
+
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        send_password_reset_email.delay(user.name, user.email, reset_url)
+
+    async def reset_password(self, db: AsyncSession, token: str, new_password: str):
+        result = await db.execute(
+            select(User).where(User.password_reset_token == token)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user or not user.password_reset_expires_at:
+            raise ValueError("Token inválido ou expirado")
+
+        expires_at = user.password_reset_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if datetime.now(timezone.utc) > expires_at:
+            raise ValueError("Token inválido ou expirado")
+
+        user.password_hash = hash_password(new_password)
+        user.password_reset_token = None
+        user.password_reset_expires_at = None
         await db.commit()
 
     async def login_google(self, db: AsyncSession, id_token: str):

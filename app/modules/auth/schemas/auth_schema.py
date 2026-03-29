@@ -18,3 +18,12 @@ class GoogleAuthSchema(BaseModel):
 
 class VerifyEmailSchema(BaseModel):
     code: str
+
+
+class ForgotPasswordSchema(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordSchema(BaseModel):
+    token: str
+    new_password: str

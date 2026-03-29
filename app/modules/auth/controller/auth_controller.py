@@ -57,3 +57,14 @@ class AuthController(BaseController):
             return success("E-mail confirmado com sucesso")
         except ValueError as e:
             return error(str(e))
+
+    async def forgot_password(self, db, data):
+        await self.service.request_password_reset(db, data.email)
+        return success("Se o e-mail estiver cadastrado, você receberá as instruções em breve.")
+
+    async def reset_password(self, db, data):
+        try:
+            await self.service.reset_password(db, data.token, data.new_password)
+            return success("Senha redefinida com sucesso.")
+        except ValueError as e:
+            return error(str(e))

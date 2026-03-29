@@ -7,6 +7,8 @@ from app.modules.auth.schemas.auth_schema import (
     LoginSchema,
     GoogleAuthSchema,
     VerifyEmailSchema,
+    ForgotPasswordSchema,
+    ResetPasswordSchema,
 )
 
 router = APIRouter(
@@ -39,3 +41,13 @@ async def verify_email(
     user_id: int = Depends(get_current_user_id),
 ):
     return await controller.verify_email(db, user_id, data)
+
+
+@router.post("/forgot-password")
+async def forgot_password(data: ForgotPasswordSchema, db=Depends(get_db)):
+    return await controller.forgot_password(db, data)
+
+
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordSchema, db=Depends(get_db)):
+    return await controller.reset_password(db, data)

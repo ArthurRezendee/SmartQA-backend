@@ -19,5 +19,7 @@ class Settings:
 
         self.GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
+        self.FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost")
+
 
 settings = Settings()
