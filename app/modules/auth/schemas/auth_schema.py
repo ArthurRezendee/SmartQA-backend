@@ -14,3 +14,7 @@ class LoginSchema(BaseModel):
 
 class GoogleAuthSchema(BaseModel):
     token: str  # token JWT do Google
+
+
+class VerifyEmailSchema(BaseModel):
+    code: str

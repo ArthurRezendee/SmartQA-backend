@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -10,11 +12,10 @@ from app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
-    verify_email_confirmation_token,
+    generate_verification_code,
 )
 from app.modules.auth.providers.google import verify_google_token
 from app.jobs.user.send_confirmation_email import send_confirmation_email
-import jwt
 
 
 class AuthService:
@@ -23,26 +24,15 @@ class AuthService:
         self.billing_controller = BillingController()
 
     async def _assign_free_plan_if_missing(self, db: AsyncSession, user: User):
-        """
-        Verifica se o usuário já possui billing account.
-        Se não possuir, cria automaticamente com o plano 'free'.
-        """
-
-        # 🔎 Verifica se já existe billing account
         result = await db.execute(
-            select(BillingAccount).where(
-                BillingAccount.owner_user_id == user.id
-            )
+            select(BillingAccount).where(BillingAccount.owner_user_id == user.id)
         )
         existing = result.scalar_one_or_none()
 
         if existing:
             return existing
 
-        # 🔎 Busca plano free pelo slug
-        plan_result = await db.execute(
-            select(Plan).where(Plan.slug == "free")
-        )
+        plan_result = await db.execute(select(Plan).where(Plan.slug == "free"))
         free_plan = plan_result.scalar_one_or_none()
 
         if not free_plan:
@@ -54,6 +44,12 @@ class AuthService:
             user_id=user.id,
         )
 
+    def _set_verification_code(self, user: User) -> str:
+        code = generate_verification_code()
+        user.email_verification_code = code
+        user.email_verification_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+        return code
+
     async def register(self, db: AsyncSession, name: str, email: str, password: str):
         result = await db.execute(select(User).where(User.email == email))
         if result.scalar_one_or_none():
@@ -63,7 +59,8 @@ class AuthService:
             name=name,
             email=email,
             password_hash=hash_password(password),
-            is_active=True
+            is_active=True,
+            email_verified=False,
         )
 
         db.add(user)
@@ -72,11 +69,13 @@ class AuthService:
 
         await self._assign_free_plan_if_missing(db, user)
 
-        send_confirmation_email.delay(user.id)
+        code = self._set_verification_code(user)
+        await db.commit()
+
+        send_confirmation_email.delay(user.name, user.email, code)
 
         token = create_access_token({"sub": str(user.id)})
         return user, token
-
 
     async def login(self, db: AsyncSession, email: str, password: str):
         result = await db.execute(select(User).where(User.email == email))
@@ -93,12 +92,7 @@ class AuthService:
         token = create_access_token({"sub": str(user.id)})
         return user, token
 
-    async def confirm_email(self, db: AsyncSession, token: str):
-        try:
-            user_id = verify_email_confirmation_token(token)
-        except jwt.InvalidTokenError:
-            raise ValueError("Token inválido ou expirado")
-
+    async def verify_email_code(self, db: AsyncSession, user_id: int, code: str):
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
 
@@ -108,7 +102,22 @@ class AuthService:
         if user.email_verified:
             raise ValueError("E-mail já confirmado")
 
+        if not user.email_verification_code or not user.email_verification_expires_at:
+            raise ValueError("Nenhum código de verificação pendente")
+
+        expires_at = user.email_verification_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if datetime.now(timezone.utc) > expires_at:
+            raise ValueError("Código expirado")
+
+        if user.email_verification_code != code:
+            raise ValueError("Código inválido")
+
         user.email_verified = True
+        user.email_verification_code = None
+        user.email_verification_expires_at = None
         await db.commit()
 
     async def login_google(self, db: AsyncSession, id_token: str):
@@ -126,22 +135,31 @@ class AuthService:
             if not user.google_id:
                 user.google_id = google_id
                 user.avatar_url = avatar
-                user.email_verified = True
                 await db.commit()
+
+            if not user.email_verified:
+                code = self._set_verification_code(user)
+                await db.commit()
+                send_confirmation_email.delay(user.name, user.email, code)
         else:
             user = User(
                 name=name,
                 email=email,
                 google_id=google_id,
                 avatar_url=avatar,
-                email_verified=True,
-                is_active=True
+                is_active=True,
+                email_verified=False,
             )
             db.add(user)
             await db.commit()
             await db.refresh(user)
 
-        await self._assign_free_plan_if_missing(db, user)
+            await self._assign_free_plan_if_missing(db, user)
+
+            code = self._set_verification_code(user)
+            await db.commit()
+
+            send_confirmation_email.delay(user.name, user.email, code)
 
         token = create_access_token({"sub": str(user.id)})
         return user, token

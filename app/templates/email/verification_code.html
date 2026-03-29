@@ -1,0 +1,28 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<p>Olá <strong>{{ user_name }}</strong>,</p>
+
+<p>
+  Use o código abaixo para confirmar seu e-mail no <strong>SmartQA</strong>.
+  Ele é válido por <strong>15 minutos</strong>.
+</p>
+
+<div style="margin: 32px 0; text-align: center;">
+  <span style="
+    display: inline-block;
+    font-size: 36px;
+    font-weight: bold;
+    letter-spacing: 12px;
+    color: #4f46e5;
+    background: #f0f0ff;
+    padding: 16px 32px;
+    border-radius: 8px;
+    border: 2px dashed #4f46e5;
+  ">{{ code }}</span>
+</div>
+
+<p style="margin-top: 24px; color: #6b7280; font-size: 13px;">
+  Se você não criou essa conta, pode ignorar este e-mail com segurança.
+</p>
+{% endblock %}

@@ -4,6 +4,7 @@ from sqlalchemy import (
     String,
     Boolean,
     Text,
+    DateTime,
 )
 from app.core.base import Base
 from sqlalchemy.orm import relationship
@@ -23,6 +24,9 @@ class User(Base):
 
     is_active = Column(Boolean, default=True, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)
+
+    email_verification_code = Column(String(6), nullable=True)
+    email_verification_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     role = Column(String(50), default="user", nullable=False)
     

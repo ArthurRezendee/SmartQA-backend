@@ -16,9 +16,10 @@ class AuthController(BaseController):
                 data.email,
                 data.password
             )
-            return success("Usuário criado com sucesso", {
+            return success("Usuário criado com sucesso. Verifique seu e-mail.", {
                 "user_id": user.id,
-                "token": token
+                "token": token,
+                "email_verified": user.email_verified,
             })
         except ValueError as e:
             return error(str(e))
@@ -32,7 +33,8 @@ class AuthController(BaseController):
             )
             return success("Login realizado", {
                 "user_id": user.id,
-                "token": token
+                "token": token,
+                "email_verified": user.email_verified,
             })
         except ValueError as e:
             return error(str(e))
@@ -42,16 +44,16 @@ class AuthController(BaseController):
             user, token = await self.service.login_google(db, data.token)
             return success("Login Google realizado", {
                 "user_id": user.id,
-                "token": token
+                "token": token,
+                "email_verified": user.email_verified,
             })
         except Exception as e:
             print("❌ Google login error:", e)
             raise
 
-    async def confirm_email(self, db, token: str):
+    async def verify_email(self, db, user_id: int, data):
         try:
-            await self.service.confirm_email(db, token)
+            await self.service.verify_email_code(db, user_id, data.code)
             return success("E-mail confirmado com sucesso")
         except ValueError as e:
             return error(str(e))
-
