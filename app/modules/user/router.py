@@ -1,7 +1,8 @@
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File
 from app.modules.user.controller.user_controller import UserController
 from app.core.database.async_db import get_db
+from app.core.dependencies import get_current_user_id
 from app.modules.user.schemas.user_schema import UserCreate, UserUpdate
 
 router = APIRouter(
@@ -37,3 +38,11 @@ async def update_user(entity_id: int, data: UserUpdate, db=Depends(get_db)):
 @router.delete("/{entity_id}")
 async def delete_user(entity_id: int, db=Depends(get_db)):
     return await controller.delete_user(db, entity_id)
+
+@router.patch("/me/avatar")
+async def update_avatar(
+    file: UploadFile = File(...),
+    db=Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    return await controller.update_avatar(db, user_id, file)

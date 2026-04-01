@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from app.core.config import settings
 from app.modules.qa_analysis.router import router as qa_analysis_router
@@ -42,3 +43,5 @@ app.include_router(organization_router)
 app.include_router(plans_router)
 app.include_router(email_router)
 app.include_router(notification_router)
+
+app.mount("/dados", StaticFiles(directory="/dados"), name="dados")
