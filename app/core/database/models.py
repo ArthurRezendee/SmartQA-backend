@@ -19,6 +19,10 @@ import app.modules.documentation.model.documentation_model
 # Organization
 import app.modules.organization.model.organization_model
 import app.modules.organization.model.organization_member_model
+import app.modules.organization.model.organization_invitation_model
+
+# Notifications
+import app.modules.notification.model.notification_model
 
 # Analysis Jobs
 import app.modules.qa_analysis.model.analysis_job_model

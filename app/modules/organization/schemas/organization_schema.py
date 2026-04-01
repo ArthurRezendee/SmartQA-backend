@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, EmailStr
+from typing import Literal, Optional
 
 
 class OrganizationCreate(BaseModel):
@@ -23,3 +23,14 @@ class OrganizationMemberAdd(BaseModel):
 
 class OrganizationMemberUpdate(BaseModel):
     role: str
+
+
+# ─── Convites ─────────────────────────────────────────────────────────────────
+
+class OrganizationInviteCreate(BaseModel):
+    email: EmailStr
+    role: str = "member"  # admin | member
+
+
+class InvitationRespond(BaseModel):
+    action: Literal["accept", "decline"]

@@ -1,0 +1,26 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<p>Olá!</p>
+
+<p>
+  <strong>{{ inviter_name }}</strong> te convidou para participar de
+  <strong>{{ org_name }}</strong> no <strong>SmartQA</strong> com o papel de
+  <strong>{{ role }}</strong>.
+</p>
+
+<p>Clique no botão abaixo para visualizar e aceitar (ou recusar) o convite:</p>
+
+<div style="margin: 32px 0; text-align: center;">
+  <a href="{{ invite_url }}" class="button">Ver convite</a>
+</div>
+
+<p style="color: #6b7280; font-size: 13px;">
+  Se o botão não funcionar, copie e cole o link abaixo no seu navegador:
+</p>
+<p style="word-break: break-all; font-size: 13px; color: #4f46e5;">{{ invite_url }}</p>
+
+<p style="margin-top: 24px; color: #6b7280; font-size: 13px;">
+  Este convite é válido por <strong>7 dias</strong>. Se você não esperava esse convite, pode ignorar este e-mail.
+</p>
+{% endblock %}
