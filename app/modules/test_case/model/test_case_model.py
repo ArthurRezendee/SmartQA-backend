@@ -19,10 +19,10 @@ class TestCase(Base):
 
     id = Column(Integer, primary_key=True)
 
-    # relacionamento
-    qa_analysis_id = Column(
+    # Casos de teste pertencem a um alvo (Target)
+    target_id = Column(
         Integer,
-        ForeignKey("qa_analyses.id", ondelete="CASCADE"),
+        ForeignKey("targets.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -118,7 +118,8 @@ class TestCase(Base):
     ai_model_used = Column(String(100), nullable=True)
     ai_confidence_score = Column(Float, nullable=True)
 
-    deleted_at = Column(DateTime, nullable=True, default=None) 
+    deleted_at = Column(DateTime, nullable=True, default=None)
+
     # relacionamentos
     steps = relationship(
         "TestCaseStep",
@@ -127,4 +128,4 @@ class TestCase(Base):
         order_by="TestCaseStep.order",
     )
 
-    analysis = relationship("QaAnalysis", back_populates="test_cases")
+    target = relationship("Target", back_populates="test_cases")

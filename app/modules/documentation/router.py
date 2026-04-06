@@ -23,34 +23,28 @@ def get_db():
 
 
 # ============================
-# GETs
+# GETs por tela (Screen)
 # ============================
 
-@router.get("/analysis/{analysis_id}")
-def list_by_analysis(
-    analysis_id: int,
+@router.get("/screen/{screen_id}")
+def list_by_screen(
+    screen_id: int,
     db: Session = Depends(get_db),
 ):
-    """
-    Lista todas as documentações de uma análise
-    """
-    return controller.get_by_analysis(db, analysis_id)
+    return controller.get_by_screen(db, screen_id)
 
 
-@router.get("/analysis/{analysis_id}/latest")
+@router.get("/screen/{screen_id}/latest")
 def get_latest(
-    analysis_id: int,
+    screen_id: int,
     db: Session = Depends(get_db),
 ):
-    """
-    Retorna a documentação mais recente da análise
-    """
-    doc = controller.get_latest_by_analysis(db, analysis_id)
+    doc = controller.get_latest_by_screen(db, screen_id)
 
     if not doc:
         raise HTTPException(
             status_code=404,
-            detail="Nenhuma documentação encontrada para esta análise",
+            detail="Nenhuma documentação encontrada para esta tela",
         )
 
     return doc
@@ -66,9 +60,6 @@ def update_documentation(
     payload: dict = Body(...),
     db: Session = Depends(get_db),
 ):
-    """
-    Atualiza uma documentação existente (edição manual)
-    """
     result = controller.update(db, documentation_id, payload)
 
     if not result["status"]:
@@ -81,7 +72,7 @@ def update_documentation(
 
 
 # ============================
-# PUT – update manual
+# Export
 # ============================
 
 @router.get("/export/{documentation_id}")
@@ -89,9 +80,4 @@ def export_documentation(
     documentation_id: int,
     db: Session = Depends(get_db),
 ):
-    """
-    Exporta uma documentação para um formato específico (ex: PDF, DOCX)
-    """
-    result = controller.export(db, documentation_id)
-
-    return result
+    return controller.export(db, documentation_id)

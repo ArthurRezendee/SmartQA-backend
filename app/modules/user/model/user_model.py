@@ -32,12 +32,12 @@ class User(Base):
     password_reset_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     role = Column(String(50), default="user", nullable=False)
-    
+
     owned_organizations = relationship("Organization", foreign_keys="Organization.owner_id", back_populates="owner")
     organization_memberships = relationship("OrganizationMember", foreign_keys="OrganizationMember.user_id", back_populates="user")
-    
-    analyses = relationship("QaAnalysis", back_populates="user", foreign_keys="QaAnalysis.user_id")
 
+    screens = relationship("Screen", back_populates="user", foreign_keys="Screen.user_id")
+    targets = relationship("Target", back_populates="user", foreign_keys="Target.user_id")
 
     def __repr__(self):
         return f"<User id={self.id} email={self.email}>"

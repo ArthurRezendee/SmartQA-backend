@@ -17,7 +17,7 @@ class PlaywrightController(BaseController):
     def _serialize(self, script: PlaywrightScript) -> Dict[str, Any]:
         return {
             "id": script.id,
-            "analysis_id": script.analysis_id,
+            "target_id": script.target_id,
             "title": script.title,
             "version": script.version,
             "language": script.language,
@@ -32,12 +32,12 @@ class PlaywrightController(BaseController):
     # GET
     # =========================
 
-    async def index(self, analyses_id: int):
+    async def index(self, target_id: int):
         db: Session = SessionLocal()
         try:
             scripts: List[PlaywrightScript] = (
                 db.query(PlaywrightScript)
-                .filter(PlaywrightScript.analysis_id == analyses_id)
+                .filter(PlaywrightScript.target_id == target_id)
                 .order_by(PlaywrightScript.version.desc())
                 .all()
             )
@@ -61,7 +61,7 @@ class PlaywrightController(BaseController):
     # POST (create)
     # =========================
 
-    async def store(self, analyses_id: int, payload: Dict[str, Any]):
+    async def store(self, target_id: int, payload: Dict[str, Any]):
         db: Session = SessionLocal()
         try:
             script_code = payload.get("script")
@@ -72,15 +72,14 @@ class PlaywrightController(BaseController):
                     "data": None,
                 }
 
-            # próxima versão
             last_version = (
                 db.query(func.max(PlaywrightScript.version))
-                .filter(PlaywrightScript.analysis_id == analyses_id)
+                .filter(PlaywrightScript.target_id == target_id)
                 .scalar()
             ) or 0
 
             script = PlaywrightScript(
-                analysis_id=analyses_id,
+                target_id=target_id,
                 title=payload.get("title", "Playwright Script"),
                 language=payload.get("language", "typescript"),
                 script=script_code,
@@ -114,13 +113,13 @@ class PlaywrightController(BaseController):
     # PUT (update)
     # =========================
 
-    async def update(self, analysis_id: int, version: int, payload: Dict[str, Any]):
+    async def update(self, target_id: int, version: int, payload: Dict[str, Any]):
         db: Session = SessionLocal()
         try:
             script: Optional[PlaywrightScript] = (
                 db.query(PlaywrightScript)
                 .filter(
-                    PlaywrightScript.analysis_id == analysis_id,
+                    PlaywrightScript.target_id == target_id,
                     PlaywrightScript.version == version,
                 )
                 .first()
@@ -134,13 +133,7 @@ class PlaywrightController(BaseController):
                 }
 
             updatable_fields = [
-                "title",
-                "language",
-                "status",
-                "script",
-                "generator_model",
-                "error_message",
-                "meta",
+                "title", "language", "status", "script", "generator_model", "error_message", "meta",
             ]
 
             for f in updatable_fields:

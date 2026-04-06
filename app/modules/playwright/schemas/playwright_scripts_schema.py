@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class PlaywrightScriptCreate(BaseModel):
-    analysis_id: int
+    target_id: int
     title: Optional[str] = "Playwright Script"
     language: Optional[str] = "typescript"
     script: str
@@ -21,7 +21,7 @@ class PlaywrightScriptUpdate(BaseModel):
 
 class PlaywrightScriptResponse(BaseModel):
     id: int
-    analysis_id: int
+    target_id: int
     title: str
     version: int
     language: str

@@ -5,9 +5,10 @@ from app.modules.ai.service.tests_generator_service import TestCaseAgent
 from app.modules.ai.utils.ai_utils import AiUtils
 from app.core.database.sync_db import SessionLocal
 
-from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
+from app.modules.target.model.target_model import Target
 from app.modules.test_case.model.test_case_model import TestCase
 from app.modules.test_case.model.test_case_step_model import TestCaseStep
+from app.modules.target.service.target_service import TargetService
 from app.jobs.ia._jobs import mark_job_running, mark_job_completed, mark_job_error
 
 
@@ -42,29 +43,45 @@ def safe_text(value):
 def generate_test_case(*args, **kwargs):
     logger.info(f"🚀 Job GenerateTestCase iniciado | kwargs={kwargs}")
 
-    qa_analysis_id = kwargs.get("analysis_id")
+    target_id = kwargs.get("analysis_id")
     ai_model_used = kwargs.get("ai_model_used", "gpt-4.1-mini")
 
-    if not qa_analysis_id:
-        raise ValueError("analysis_id não informado")
+    if not target_id:
+        raise ValueError("analysis_id (target_id) não informado")
 
     db = SessionLocal()
 
     try:
-        # ==========================================================
-        # 0) busca análise e monta prompt
-        # ==========================================================
-        mark_job_running(db, qa_analysis_id, "test_cases")
+        mark_job_running(db, target_id, "test_cases")
         db.commit()
 
-        analysis = db.query(QaAnalysis).filter(QaAnalysis.id == qa_analysis_id).first()
-        if not analysis:
-            raise ValueError(f"QaAnalysis {qa_analysis_id} não encontrada")
+        target_service = TargetService()
+        target_payload = target_service.get_or_fail_sync(
+            db=db,
+            target_id=target_id,
+            user_id=kwargs.get("user_id", 0),
+        )
 
-        analysis_payload = analysis.to_dict()
+        if not isinstance(target_payload, dict):
+            target_payload = target_payload.to_dict()
 
-        if not analysis_payload.get("tests_description"):
+        if not target_payload.get("tests_description"):
             raise ValueError("tests_description não encontrado — descrição ainda não foi gerada")
+
+        # Obtém dados da screen primária para contexto
+        screens = target_payload.get("screens", [])
+        primary_screen = screens[0] if screens else {}
+
+        # Monta o payload de análise combinando target + screen
+        analysis_payload = {
+            "id": target_id,
+            "name": target_payload.get("name"),
+            "target_url": primary_screen.get("url", ""),
+            "description": target_payload.get("description", ""),
+            "screen_context": primary_screen.get("screen_context", ""),
+            "tests_description": target_payload.get("tests_description"),
+            "documents": primary_screen.get("documents", []),
+        }
 
         documents_block = None
         documents = analysis_payload.get("documents")
@@ -79,9 +96,6 @@ def generate_test_case(*args, **kwargs):
             documents_block=documents_block,
         )
 
-        # ==========================================================
-        # 2) chama IA
-        # ==========================================================
         agent = TestCaseAgent(model=ai_model_used)
         test_cases_payload = agent.generate(test_case_prompt)
 
@@ -90,9 +104,6 @@ def generate_test_case(*args, **kwargs):
 
         logger.info(f"[GenerateTestCase] IA retornou {len(test_cases_payload)} casos")
 
-        # ==========================================================
-        # 3) persistência
-        # ==========================================================
         created_test_cases: list[TestCase] = []
 
         for idx, tc in enumerate(test_cases_payload, start=1):
@@ -102,21 +113,17 @@ def generate_test_case(*args, **kwargs):
                 continue
 
             test_case = TestCase(
-                qa_analysis_id=qa_analysis_id,
+                target_id=target_id,
                 title=title[:255],
                 description=safe_text(tc.get("description")),
                 objective=safe_text(tc.get("objective")),
-
                 test_type=normalize_enum(tc.get("test_type"), ALLOWED_TEST_TYPE, "functional"),
                 scenario_type=normalize_enum(tc.get("scenario_type"), ALLOWED_SCENARIO_TYPE, "positive"),
                 priority=normalize_enum(tc.get("priority"), ALLOWED_PRIORITY, "medium"),
                 risk_level=normalize_enum(tc.get("risk_level"), ALLOWED_RISK, "medium"),
-
                 preconditions=safe_text(tc.get("preconditions")),
                 expected_result=safe_text(tc.get("expected_result")),
-
                 status="generated",
-
                 generated_by_ai=True,
                 ai_model_used=ai_model_used,
             )
@@ -126,9 +133,6 @@ def generate_test_case(*args, **kwargs):
 
         db.flush()
 
-        # ==========================================================
-        # 4) steps
-        # ==========================================================
         steps_to_create: list[TestCaseStep] = []
 
         for tc_obj, tc_payload in zip(created_test_cases, test_cases_payload):
@@ -157,15 +161,12 @@ def generate_test_case(*args, **kwargs):
         if steps_to_create:
             db.bulk_save_objects(steps_to_create)
 
-        # ==========================================================
-        # 5) marca job como concluído (verifica se batch todo terminou)
-        # ==========================================================
-        mark_job_completed(db, qa_analysis_id, "test_cases")
+        mark_job_completed(db, target_id, "test_cases")
         db.commit()
 
         logger.info(
             f"✅ Job GenerateTestCase finalizado | "
-            f"analysis_id={qa_analysis_id} | "
+            f"target_id={target_id} | "
             f"test_cases_salvos={len(created_test_cases)} | "
             f"steps_salvos={len(steps_to_create)}"
         )
@@ -178,7 +179,7 @@ def generate_test_case(*args, **kwargs):
         max_retries = generate_test_case.max_retries or 0
         if retries_done >= max_retries:
             try:
-                mark_job_error(db, qa_analysis_id, "test_cases", e)
+                mark_job_error(db, target_id, "test_cases", e)
                 db.commit()
             except Exception:
                 db.rollback()

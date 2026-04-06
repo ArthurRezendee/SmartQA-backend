@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from app.core.config import settings
-from app.modules.qa_analysis.router import router as qa_analysis_router
+from app.modules.screen.router import router as screen_router
+from app.modules.target.router import router as target_router
 from app.modules.auth.router import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.modules.ai.router import router as ai_router
@@ -19,20 +20,21 @@ import app.core.database.models
 load_dotenv()
 
 app = FastAPI(
-    title="SmartQA API",  
-    description="SmartQA - Sistema de Qualidade de Software",  
-    version="1.0.0",  
+    title="SmartQA API",
+    description="SmartQA - Sistema de Qualidade de Software",
+    version="2.0.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*"],  
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app.include_router(qa_analysis_router)
+app.include_router(screen_router)
+app.include_router(target_router)
 app.include_router(auth_router)
 app.include_router(ai_router)
 app.include_router(test_case_router)

@@ -34,7 +34,7 @@ class TestCaseController(BaseController):
     def _serialize_test_case(self, tc: TestCase) -> Dict[str, Any]:
         return {
             "id": tc.id,
-            "qa_analysis_id": tc.qa_analysis_id,
+            "target_id": tc.target_id,
             "title": tc.title,
             "description": tc.description,
             "objective": tc.objective,
@@ -80,13 +80,13 @@ class TestCaseController(BaseController):
     # GET
     # =========================
 
-    async def index(self, analyses_id: int):
+    async def index(self, target_id: int):
         db: Session = SessionLocal()
         try:
             test_cases: List[TestCase] = (
                 db.query(TestCase)
                 .options(joinedload(TestCase.steps))
-                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.target_id == target_id)
                 .order_by(TestCase.id.asc())
                 .all()
             )
@@ -103,32 +103,7 @@ class TestCaseController(BaseController):
     # POST (create)
     # =========================
 
-    async def store(self, analyses_id: int, payload: Dict[str, Any]):
-        """
-        payload exemplo:
-        {
-          "title": "...",
-          "description": "...",
-          "objective": "...",
-          "test_type": "functional",
-          "scenario_type": "positive",
-          "priority": "medium",
-          "risk_level": "medium",
-          "preconditions": "...",
-          "postconditions": "...",
-          "expected_result": "...",
-          "status": "generated",
-          "has_automation": false,
-          "automation_status": "not_generated",
-          "generated_by_ai": true,
-          "ai_model_used": "gpt-4.1-mini",
-          "ai_confidence_score": 0.82,
-          "steps": [
-            {"order": 1, "action": "...", "expected_result": "...", "step_type": "action"},
-            {"order": 2, "action": "...", "expected_result": "...", "step_type": "assertion"}
-          ]
-        }
-        """
+    async def store(self, target_id: int, payload: Dict[str, Any]):
         db: Session = SessionLocal()
         try:
             title = (payload or {}).get("title")
@@ -143,7 +118,7 @@ class TestCaseController(BaseController):
             self._validate_steps_payload(steps_payload)
 
             tc = TestCase(
-                qa_analysis_id=analyses_id,
+                target_id=target_id,
                 title=title,
                 description=payload.get("description"),
                 objective=payload.get("objective"),
@@ -163,9 +138,8 @@ class TestCaseController(BaseController):
             )
 
             db.add(tc)
-            db.flush()  # garante tc.id
+            db.flush()
 
-            # cria steps
             if steps_payload:
                 for idx, s in enumerate(steps_payload):
                     step = TestCaseStep(
@@ -179,7 +153,6 @@ class TestCaseController(BaseController):
 
             db.commit()
 
-            # reload com steps
             tc = (
                 db.query(TestCase)
                 .options(joinedload(TestCase.steps))
@@ -206,20 +179,14 @@ class TestCaseController(BaseController):
     # PUT (update + sync steps)
     # =========================
 
-    async def update(self, analyses_id: int, test_case_id: int, payload: Dict[str, Any]):
-        """
-        Atualiza o test case e sincroniza steps:
-        - step com id => update
-        - step sem id => create
-        - step existente que não veio => delete
-        """
+    async def update(self, target_id: int, test_case_id: int, payload: Dict[str, Any]):
         db: Session = SessionLocal()
         try:
             tc: Optional[TestCase] = (
                 db.query(TestCase)
                 .options(joinedload(TestCase.steps))
                 .filter(TestCase.id == test_case_id)
-                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.target_id == target_id)
                 .first()
             )
 
@@ -230,31 +197,17 @@ class TestCaseController(BaseController):
                     "data": None,
                 }
 
-            # atualiza campos simples (só se veio no payload)
             updatable_fields = [
-                "title",
-                "description",
-                "objective",
-                "test_type",
-                "scenario_type",
-                "priority",
-                "risk_level",
-                "preconditions",
-                "postconditions",
-                "expected_result",
-                "status",
-                "has_automation",
-                "automation_status",
-                "generated_by_ai",
-                "ai_model_used",
-                "ai_confidence_score",
+                "title", "description", "objective", "test_type", "scenario_type",
+                "priority", "risk_level", "preconditions", "postconditions",
+                "expected_result", "status", "has_automation", "automation_status",
+                "generated_by_ai", "ai_model_used", "ai_confidence_score",
             ]
 
             for f in updatable_fields:
                 if f in payload:
                     setattr(tc, f, payload.get(f))
 
-            # steps sync
             if "steps" in payload:
                 steps_payload = payload.get("steps")
                 self._validate_steps_payload(steps_payload)
@@ -262,7 +215,6 @@ class TestCaseController(BaseController):
                 existing_by_id: Dict[int, TestCaseStep] = {s.id: s for s in (tc.steps or [])}
                 received_ids: set[int] = set()
 
-                # atualiza/cria
                 for idx, s in enumerate(steps_payload or []):
                     step_id = s.get("id")
 
@@ -293,7 +245,6 @@ class TestCaseController(BaseController):
                         )
                         db.add(new_step)
 
-                # delete steps que não vieram
                 for step in list(tc.steps or []):
                     if step.id not in received_ids and step.id is not None:
                         db.delete(step)
@@ -322,13 +273,13 @@ class TestCaseController(BaseController):
         finally:
             db.close()
 
-    async def soft_delete(self, analyses_id: int, test_case_id: int):
+    async def soft_delete(self, target_id: int, test_case_id: int):
         db: Session = SessionLocal()
         try:
             tc = (
                 db.query(TestCase)
                 .filter(TestCase.id == test_case_id)
-                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.target_id == target_id)
                 .first()
             )
 
@@ -346,14 +297,13 @@ class TestCaseController(BaseController):
         finally:
             db.close()
 
-
-    async def restore(self, analyses_id: int, test_case_id: int, restore_status: str = "generated"):
+    async def restore(self, target_id: int, test_case_id: int, restore_status: str = "generated"):
         db: Session = SessionLocal()
         try:
             tc = (
                 db.query(TestCase)
                 .filter(TestCase.id == test_case_id)
-                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.target_id == target_id)
                 .first()
             )
 
@@ -374,14 +324,13 @@ class TestCaseController(BaseController):
         finally:
             db.close()
 
-
-    async def step_soft_delete(self, analyses_id: int, test_case_id: int, step_id: int):
+    async def step_soft_delete(self, target_id: int, test_case_id: int, step_id: int):
         db: Session = SessionLocal()
         try:
             step = (
                 db.query(TestCaseStep)
                 .join(TestCase, TestCase.id == TestCaseStep.test_case_id)
-                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.target_id == target_id)
                 .filter(TestCase.id == test_case_id)
                 .filter(TestCaseStep.id == step_id)
                 .first()
@@ -401,14 +350,13 @@ class TestCaseController(BaseController):
         finally:
             db.close()
 
-
-    async def step_restore(self, analyses_id: int, test_case_id: int, step_id: int):
+    async def step_restore(self, target_id: int, test_case_id: int, step_id: int):
         db: Session = SessionLocal()
         try:
             step = (
                 db.query(TestCaseStep)
                 .join(TestCase, TestCase.id == TestCaseStep.test_case_id)
-                .filter(TestCase.qa_analysis_id == analyses_id)
+                .filter(TestCase.target_id == target_id)
                 .filter(TestCase.id == test_case_id)
                 .filter(TestCaseStep.id == step_id)
                 .first()
@@ -427,89 +375,39 @@ class TestCaseController(BaseController):
             return {"status": False, "message": f"erro ao recuperar step: {e}", "data": None}
         finally:
             db.close()
-            
-    async def export_test_cases(self, analyses_id: int):
+
+    async def export_test_cases(self, target_id: int):
         db: Session = SessionLocal()
         try:
             test_cases: List[TestCase] = (
                 db.query(TestCase)
                 .options(joinedload(TestCase.steps))
                 .filter(
-                    TestCase.qa_analysis_id == analyses_id,
+                    TestCase.target_id == target_id,
                     TestCase.deleted_at.is_(None),
                 )
                 .order_by(TestCase.id.asc())
                 .all()
             )
 
-            # ==============================
-            # MAPAS DE TRADUÇÃO
-            # ==============================
-
-            SCENARIO_MAP = {
-                "positive": "Positivo",
-                "negative": "Negativo",
-                "edge": "Caso Limite",
-            }
-
-            TEST_TYPE_MAP = {
-                "functional": "Funcional",
-                "regression": "Regressão",
-                "smoke": "Smoke",
-                "exploratory": "Exploratório",
-            }
-
-            PRIORITY_MAP = {
-                "low": "Baixa",
-                "medium": "Média",
-                "high": "Alta",
-                "critical": "Crítica",
-            }
-
-            RISK_MAP = {
-                "low": "Baixo",
-                "medium": "Médio",
-                "high": "Alto",
-            }
-
-            STATUS_MAP = {
-                "generated": "Gerado",
-                "reviewed": "Revisado",
-                "approved": "Aprovado",
-                "deprecated": "Obsoleto",
-            }
-
-            STEP_TYPE_MAP = {
-                "action": "Ação",
-                "assertion": "Validação",
-                "setup": "Preparação",
-            }
-
-            # ==============================
-            # FUNÇÕES AUXILIARES
-            # ==============================
+            SCENARIO_MAP = {"positive": "Positivo", "negative": "Negativo", "edge": "Caso Limite"}
+            TEST_TYPE_MAP = {"functional": "Funcional", "regression": "Regressão", "smoke": "Smoke", "exploratory": "Exploratório"}
+            PRIORITY_MAP = {"low": "Baixa", "medium": "Média", "high": "Alta", "critical": "Crítica"}
+            RISK_MAP = {"low": "Baixo", "medium": "Médio", "high": "Alto"}
+            STATUS_MAP = {"generated": "Gerado", "reviewed": "Revisado", "approved": "Aprovado", "deprecated": "Obsoleto"}
+            STEP_TYPE_MAP = {"action": "Ação", "assertion": "Validação", "setup": "Preparação"}
 
             def translate(value: str, mapping: dict) -> str:
-                if not value:
-                    return "-"
-                return mapping.get(value, value)
+                return mapping.get(value, value) if value else "-"
 
             def format_bool(value: bool) -> str:
                 return "Sim" if value else "Não"
 
             def format_text(value: str) -> str:
-                if not value:
-                    return "-"
-                return " ".join(value.strip().split())
+                return " ".join(value.strip().split()) if value else "-"
 
-            # ==============================
-            # ABA 1 — TEST CASES
-            # ==============================
-
-            cases_data = []
-
-            for tc in test_cases:
-                cases_data.append({
+            cases_data = [
+                {
                     "ID": tc.id,
                     "Título": format_text(tc.title),
                     "Tipo": translate(tc.test_type, TEST_TYPE_MAP),
@@ -519,44 +417,33 @@ class TestCaseController(BaseController):
                     "Status": translate(tc.status, STATUS_MAP),
                     "Automação": format_bool(tc.has_automation),
                     "Resultado Esperado": format_text(tc.expected_result),
-                })
+                }
+                for tc in test_cases
+            ]
 
-            # ==============================
-            # ABA 2 — STEPS
-            # ==============================
-
-            steps_data = []
-
-            for tc in test_cases:
-                for step in tc.steps:
-                    if step.deleted_at:
-                        continue
-
-                    steps_data.append({
-                        "Caso ID": tc.id,
-                        "Caso Título": format_text(tc.title),
-                        "Ordem": step.order,
-                        "Tipo Step": translate(step.step_type, STEP_TYPE_MAP),
-                        "Ação": format_text(step.action),
-                        "Resultado Esperado": format_text(step.expected_result),
-                    })
-
-            # ==============================
-            # GERAR EXCEL MULTI-SHEET
-            # ==============================
+            steps_data = [
+                {
+                    "Caso ID": tc.id,
+                    "Caso Título": format_text(tc.title),
+                    "Ordem": step.order,
+                    "Tipo Step": translate(step.step_type, STEP_TYPE_MAP),
+                    "Ação": format_text(step.action),
+                    "Resultado Esperado": format_text(step.expected_result),
+                }
+                for tc in test_cases
+                for step in tc.steps
+                if not step.deleted_at
+            ]
 
             file = self.excel_service.generate_excel(
-                {
-                    "Test Cases": cases_data,
-                    "Steps": steps_data,
-                }
+                {"Test Cases": cases_data, "Steps": steps_data}
             )
 
             return StreamingResponse(
                 file,
                 media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 headers={
-                    "Content-Disposition": f'attachment; filename="test_cases_{analyses_id}.xlsx"'
+                    "Content-Disposition": f'attachment; filename="test_cases_{target_id}.xlsx"'
                 },
             )
 

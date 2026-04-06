@@ -1,10 +1,15 @@
 # Auth / Users
 import app.modules.user.model.user_model
 
-# QA Analysis
-import app.modules.qa_analysis.model.qa_analysis_model
-import app.modules.qa_analysis.model.qa_document_model
-import app.modules.qa_analysis.model.access_credential_model
+# Screen (Tela - fonte de conhecimento)
+import app.modules.screen.model.screen_model
+import app.modules.screen.model.screen_document_model
+import app.modules.screen.model.access_credential_model
+
+# Target (Alvo - execução de análise)
+import app.modules.target.model.target_model
+import app.modules.target.model.target_screens_model
+import app.modules.target.model.target_job_model
 
 # Test cases
 import app.modules.test_case.model.test_case_model
@@ -23,7 +28,3 @@ import app.modules.organization.model.organization_invitation_model
 
 # Notifications
 import app.modules.notification.model.notification_model
-
-# Analysis Jobs
-import app.modules.qa_analysis.model.analysis_job_model
-

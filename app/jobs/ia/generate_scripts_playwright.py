@@ -1,10 +1,10 @@
 import logging
 import os
 
-import app.core.database.models  
+import app.core.database.models
 from app.core.celery_app import celery_app
 from app.core.database.sync_db import SessionLocal
-from app.modules.qa_analysis.service.qa_analysis_service import QaAnalysisService
+from app.modules.target.service.target_service import TargetService
 from app.modules.ai.utils.ai_utils import AiUtils
 
 from app.modules.ai.service.scripts_playwright_service import ScriptsPlaywrightAgent
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def generate_scripts_playwright(*, analysis_id: int, user_id: int):
     logger.info(
         "🚀 Job generate_scripts_playwright iniciado",
-        extra={"analysis_id": analysis_id, "user_id": user_id},
+        extra={"target_id": analysis_id, "user_id": user_id},
     )
 
     db = SessionLocal()
@@ -31,36 +31,50 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
         mark_job_running(db, analysis_id, "scripts")
         db.commit()
 
-        qa_service = QaAnalysisService()
-
-        analysis_payload = qa_service.get_or_fail_sync(
+        target_service = TargetService()
+        target_payload = target_service.get_or_fail_sync(
             db=db,
-            entity_id=analysis_id,
+            target_id=analysis_id,
             user_id=user_id,
         )
 
-        if not isinstance(analysis_payload, dict):
-            analysis_payload = analysis_payload.to_dict()
-        
+        if not isinstance(target_payload, dict):
+            target_payload = target_payload.to_dict()
+
+        # Obtém dados da screen primária
+        screens = target_payload.get("screens", [])
+        primary_screen = screens[0] if screens else {}
+
+        # Monta payload combinado para o prompt
+        analysis_payload = {
+            "id": analysis_id,
+            "name": target_payload.get("name"),
+            "target_url": primary_screen.get("url", ""),
+            "description": target_payload.get("description", ""),
+            "screen_context": primary_screen.get("screen_context", ""),
+            "playwright_description": target_payload.get("playwright_description", ""),
+            "tests_description": target_payload.get("tests_description", ""),
+            "documentation_description": primary_screen.get("documentation_description", ""),
+            "uiux_description": primary_screen.get("uiux_description", ""),
+            "access_credentials": primary_screen.get("access_credentials", []),
+        }
+
         scripts_playwright_prompt = AiUtils.build_playwright_script_prompt(
             analysis=analysis_payload,
         )
 
         logger.info(
             "🧠 Prompt Playwright gerado",
-            extra={"analysis_id": analysis_id, "user_id": user_id},
+            extra={"target_id": analysis_id, "user_id": user_id},
         )
 
         ai_model_used = os.getenv("OPENAI_MODEL_PLAYWRIGHT", "gpt-4.1-mini")
         agent = ScriptsPlaywrightAgent(model=ai_model_used)
-
         result = agent.generate(scripts_playwright_prompt)
 
-        # 3) salvar no banco
-        # versão: pega última versão do analysis e incrementa
         last_version = (
             db.query(PlaywrightScript.version)
-            .filter(PlaywrightScript.analysis_id == analysis_id)
+            .filter(PlaywrightScript.target_id == analysis_id)
             .order_by(PlaywrightScript.version.desc())
             .limit(1)
             .scalar()
@@ -68,16 +82,14 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
         next_version = int(last_version or 0) + 1
 
         script_row = PlaywrightScript(
-            analysis_id=analysis_id,
+            target_id=analysis_id,
             title=result["title"],
             version=next_version,
             language=result["language"],
             status="generated",
             script=result["script"],
             generator_model=ai_model_used,
-            meta={
-                "source": "celery_job",
-            },
+            meta={"source": "celery_job"},
         )
 
         db.add(script_row)
@@ -88,7 +100,7 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
         logger.info(
             "✅ Script Playwright salvo com sucesso",
             extra={
-                "analysis_id": analysis_id,
+                "target_id": analysis_id,
                 "user_id": user_id,
                 "script_id": script_row.id,
                 "version": next_version,
@@ -96,7 +108,7 @@ def generate_scripts_playwright(*, analysis_id: int, user_id: int):
         )
 
         return {
-            "analysis_id": analysis_id,
+            "target_id": analysis_id,
             "script_id": script_row.id,
             "version": next_version,
             "status": "completed",

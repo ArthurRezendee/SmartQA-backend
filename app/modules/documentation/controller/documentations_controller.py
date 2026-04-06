@@ -3,7 +3,6 @@ from sqlalchemy import func
 
 from app.shared.controller import BaseController
 from app.modules.documentation.model.documentation_model import Documentation
-from app.modules.qa_analysis.model.qa_analysis_model import QaAnalysis
 from fastapi.responses import StreamingResponse
 import io
 from app.modules.export.service.pdf_service import PDFService
@@ -15,10 +14,10 @@ class DocumentationsController(BaseController):
     # GETs
     # ============================
 
-    def get_by_analysis(self, db: Session, analysis_id: int):
+    def get_by_screen(self, db: Session, screen_id: int):
         docs = (
             db.query(Documentation)
-            .filter(Documentation.qa_analysis_id == analysis_id)
+            .filter(Documentation.screen_id == screen_id)
             .order_by(Documentation.version.desc())
             .all()
         )
@@ -28,7 +27,7 @@ class DocumentationsController(BaseController):
             "data": [
                 {
                     "id": d.id,
-                    "analysis_id": d.qa_analysis_id,
+                    "screen_id": d.screen_id,
                     "title": d.title,
                     "version": d.version,
                     "status": d.status,
@@ -41,10 +40,10 @@ class DocumentationsController(BaseController):
             ],
         }
 
-    def get_latest_by_analysis(self, db: Session, analysis_id: int):
+    def get_latest_by_screen(self, db: Session, screen_id: int):
         doc = (
             db.query(Documentation)
-            .filter(Documentation.qa_analysis_id == analysis_id)
+            .filter(Documentation.screen_id == screen_id)
             .order_by(Documentation.version.desc())
             .first()
         )
@@ -56,7 +55,7 @@ class DocumentationsController(BaseController):
             "status": True,
             "data": {
                 "id": doc.id,
-                "analysis_id": doc.qa_analysis_id,
+                "screen_id": doc.screen_id,
                 "title": doc.title,
                 "version": doc.version,
                 "status": doc.status,
@@ -72,11 +71,10 @@ class DocumentationsController(BaseController):
     # PUT – atualizar documentação
     # ============================
 
-    def update(self, db: Session, analysis_id: int, payload: dict):
+    def update(self, db: Session, documentation_id: int, payload: dict):
         documentation = (
             db.query(Documentation)
-            .filter(Documentation.qa_analysis_id == analysis_id)
-            .order_by(Documentation.version.desc())
+            .filter(Documentation.id == documentation_id)
             .first()
         )
 
@@ -97,9 +95,7 @@ class DocumentationsController(BaseController):
             if field in payload:
                 setattr(documentation, field, payload[field])
 
-        documentation.version += 1  
-        
-        # marcou como edição manual
+        documentation.version += 1
         documentation.generated_by = "user"
 
         db.commit()
@@ -110,15 +106,14 @@ class DocumentationsController(BaseController):
             "message": "Documentação atualizada com sucesso",
             "data": {
                 "id": documentation.id,
-                "analysis_id": documentation.qa_analysis_id,
+                "screen_id": documentation.screen_id,
                 "version": documentation.version,
                 "status": documentation.status,
                 "content": documentation.content,
             },
         }
-        
-    def export(self, db: Session, documentation_id: int):
 
+    def export(self, db: Session, documentation_id: int):
         documentation = (
             db.query(Documentation)
             .filter(Documentation.id == documentation_id)
@@ -131,13 +126,10 @@ class DocumentationsController(BaseController):
                 "message": "Documentação não encontrada",
             }
 
-        content = documentation.content
-
         pdf_service = PDFService()
-
         pdf_bytes = pdf_service.generate_pdf(
-            content=content,
-            format_type="md" 
+            content=documentation.content,
+            format_type="md",
         )
 
         return StreamingResponse(
@@ -145,5 +137,5 @@ class DocumentationsController(BaseController):
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f"attachment; filename=documentation_{documentation.id}.pdf"
-            }
+            },
         )

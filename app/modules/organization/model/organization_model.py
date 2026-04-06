@@ -31,9 +31,16 @@ class Organization(Base):
         primaryjoin="Organization.id == foreign(BillingAccount.organization_id)",
     )
 
-    analyses = relationship(
-        "QaAnalysis",
-        primaryjoin="and_(foreign(QaAnalysis.owner_id) == Organization.id, QaAnalysis.owner_type == 'organization')",
+    screens = relationship(
+        "Screen",
+        primaryjoin="and_(foreign(Screen.owner_id) == Organization.id, Screen.owner_type == 'organization')",
+        back_populates="organization",
+        viewonly=True,
+    )
+
+    targets = relationship(
+        "Target",
+        primaryjoin="and_(foreign(Target.owner_id) == Organization.id, Target.owner_type == 'organization')",
         back_populates="organization",
         viewonly=True,
     )

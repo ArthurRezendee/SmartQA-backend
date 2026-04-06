@@ -5,11 +5,13 @@ import hashlib
 import app.core.database.models
 from app.core.celery_app import celery_app
 from app.core.database.sync_db import SessionLocal
-from app.modules.qa_analysis.service.qa_analysis_service import QaAnalysisService
+from app.modules.screen.service.screen_service import ScreenService
+from app.modules.screen.model.screen_model import Screen
+from app.modules.screen.model.access_credential_model import AccessCredential
 from app.modules.ai.utils.ai_utils import AiUtils
 from app.modules.ai.service.docs_generator_service import DocumentationAgent
+from app.modules.ai.service.screen_explorer_service import ScreenExplorerService
 from app.modules.documentation.model.documentation_model import Documentation
-from app.jobs.ia._jobs import mark_job_running, mark_job_completed, mark_job_error
 from sqlalchemy import func
 
 
@@ -20,64 +22,112 @@ logger = logging.getLogger(__name__)
     name="jobs.ia.generate_documentation",
     autoretry_for=(),
 )
-def generate_documentation(*, analysis_id: int, user_id: int):
+def generate_documentation(*, screen_id: int, user_id: int):
     logger.info(
         "🚀 Job generate_documentation iniciado",
-        extra={"analysis_id": analysis_id, "user_id": user_id},
+        extra={"screen_id": screen_id, "user_id": user_id},
     )
 
     db = SessionLocal()
 
     try:
-        mark_job_running(db, analysis_id, "documentation")
-        db.commit()
-
-        qa_service = QaAnalysisService()
-
-        analysis_payload = qa_service.get_or_fail_sync(
+        screen_service = ScreenService()
+        screen = screen_service.get_or_fail_sync(
             db=db,
-            entity_id=analysis_id,
+            screen_id=screen_id,
             user_id=user_id,
         )
 
-        if not isinstance(analysis_payload, dict):
-            analysis_payload = analysis_payload.to_dict()
+        if not isinstance(screen, dict):
+            screen = screen.to_dict()
 
-        # Gera prompt
-        docs_prompt = AiUtils.build_docs_prompt(
-            analysis=analysis_payload,
+        # Carrega credenciais com valores para o BrowserUse
+        credentials = (
+            db.query(AccessCredential)
+            .filter(AccessCredential.screen_id == screen_id)
+            .all()
         )
+        credentials_list = [
+            {"field_name": c.field_name, "value": c.value} for c in credentials
+        ]
+
+        # Executa análise via BrowserUse para gerar documentation_description
+        screen_url = screen.get("url")
+        if screen_url:
+            logger.info(
+                "🌐 Iniciando análise BrowserUse para geração de documentação",
+                extra={"screen_id": screen_id},
+            )
+            explorer_service = ScreenExplorerService()
+            explorer_payload = {
+                "id": screen_id,
+                "name": screen.get("name"),
+                "target_url": screen_url,
+                "description": screen.get("description", ""),
+                "screen_context": screen.get("screen_context", ""),
+                "access_credentials": credentials_list,
+            }
+
+            descriptions = explorer_service.generate_screen_descriptions(
+                analysis=explorer_payload
+            )
+
+            db.query(Screen).filter(Screen.id == screen_id).update(
+                {
+                    "documentation_description": descriptions["documentation_description"],
+                    "uiux_description": descriptions["uiux_description"],
+                },
+                synchronize_session=False,
+            )
+            db.commit()
+
+            documentation_description = descriptions["documentation_description"]
+            logger.info(
+                "✅ BrowserUse concluído — documentation_description salva",
+                extra={"screen_id": screen_id},
+            )
+        else:
+            documentation_description = screen.get("documentation_description", "")
+            logger.info(
+                "⚠️ Tela sem URL — usando documentation_description existente",
+                extra={"screen_id": screen_id},
+            )
+
+        analysis_payload = {
+            "id": screen_id,
+            "name": screen.get("name"),
+            "target_url": screen_url or "N/A",
+            "description": screen.get("description", ""),
+            "screen_context": screen.get("screen_context", ""),
+            "documentation_description": documentation_description,
+        }
+
+        docs_prompt = AiUtils.build_docs_prompt(analysis=analysis_payload)
 
         logger.info(
             "🧠 Prompt Docs gerado",
-            extra={"analysis_id": analysis_id, "user_id": user_id},
+            extra={"screen_id": screen_id},
         )
 
         ai_model_used = os.getenv("OPENAI_MODEL_DOCS", "gpt-4.1-mini")
 
-        # Gera documentação
         agent = DocumentationAgent(model=ai_model_used)
         documentation_text = agent.generate(docs_prompt)
 
-        # Próxima versão
         last_version = (
             db.query(func.max(Documentation.version))
-            .filter(Documentation.qa_analysis_id == analysis_id)
+            .filter(Documentation.screen_id == screen_id)
             .scalar()
         ) or 0
 
         next_version = last_version + 1
 
-        # Title NUNCA pode ser null
-        title = (
-            analysis_payload.get("name")
-            or f"Documentação funcional - Analysis {analysis_id}"
-        )
+        title = screen.get("name") or f"Documentação funcional - Tela {screen_id}"
 
         prompt_hash = hashlib.sha256(docs_prompt.encode()).hexdigest()
 
         documentation = Documentation(
-            qa_analysis_id=analysis_id,
+            screen_id=screen_id,
             title=title,
             version=next_version,
             status="generated",
@@ -89,17 +139,15 @@ def generate_documentation(*, analysis_id: int, user_id: int):
         )
 
         db.add(documentation)
-
-        mark_job_completed(db, analysis_id, "documentation")
         db.commit()
 
         logger.info(
             "✅ Documentação gerada e salva com sucesso",
-            extra={"analysis_id": analysis_id, "version": next_version},
+            extra={"screen_id": screen_id, "version": next_version},
         )
 
         return {
-            "analysis_id": analysis_id,
+            "screen_id": screen_id,
             "documentation_version": next_version,
             "status": "completed",
         }
@@ -107,16 +155,6 @@ def generate_documentation(*, analysis_id: int, user_id: int):
     except Exception as e:
         db.rollback()
         logger.exception("❌ Erro no job generate_documentation")
-
-        retries_done = getattr(generate_documentation.request, "retries", 0)
-        max_retries = generate_documentation.max_retries or 0
-        if retries_done >= max_retries:
-            try:
-                mark_job_error(db, analysis_id, "documentation", e)
-                db.commit()
-            except Exception:
-                db.rollback()
-
         raise
 
     finally:

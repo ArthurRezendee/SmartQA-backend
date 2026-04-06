@@ -4,11 +4,9 @@ from sqlalchemy import (
     String,
     Text,
     ForeignKey,
-    DateTime,
     JSON,
     UniqueConstraint,
     Index,
-    func,
 )
 from sqlalchemy.orm import relationship
 
@@ -20,9 +18,10 @@ class Documentation(Base):
 
     id = Column(Integer, primary_key=True)
 
-    qa_analysis_id = Column(
+    # Documentação pertence a uma tela (Screen), não mais a uma análise
+    screen_id = Column(
         Integer,
-        ForeignKey("qa_analyses.id", ondelete="CASCADE"),
+        ForeignKey("screens.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -64,20 +63,20 @@ class Documentation(Base):
     # Campo flexível
     meta = Column(JSON, nullable=True)
 
-    qa_analysis = relationship(
-        "QaAnalysis",
+    screen = relationship(
+        "Screen",
         back_populates="documentations",
     )
 
     __table_args__ = (
         UniqueConstraint(
-            "qa_analysis_id",
+            "screen_id",
             "version",
-            name="uq_documentations_analysis_version",
+            name="uq_documentations_screen_version",
         ),
         Index(
-            "ix_documentations_analysis_status",
-            "qa_analysis_id",
+            "ix_documentations_screen_status",
+            "screen_id",
             "status",
         ),
     )
