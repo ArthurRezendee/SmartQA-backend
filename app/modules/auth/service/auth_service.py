@@ -15,6 +15,7 @@ from app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
+    create_refresh_token,
     generate_verification_code,
 )
 from app.core.config import settings
@@ -105,6 +106,14 @@ class AuthService:
         if pending_invites:
             await db.flush()
 
+    def _set_refresh_token(self, user: User) -> str:
+        token = create_refresh_token()
+        user.refresh_token = token
+        user.refresh_token_expires_at = datetime.now(timezone.utc) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
+        return token
+
     def _set_verification_code(self, user: User) -> str:
         code = generate_verification_code()
         user.email_verification_code = code
@@ -132,12 +141,13 @@ class AuthService:
         await self._create_pending_invite_notifications(db, user)
 
         code = self._set_verification_code(user)
+        refresh_token = self._set_refresh_token(user)
         await db.commit()
 
         send_confirmation_email.delay(user.name, user.email, code)
 
-        token = create_access_token({"sub": str(user.id)})
-        return user, token
+        access_token = create_access_token({"sub": str(user.id)})
+        return user, access_token, refresh_token
 
     async def login(self, db: AsyncSession, email: str, password: str):
         result = await db.execute(select(User).where(User.email == email))
@@ -151,8 +161,11 @@ class AuthService:
 
         await self._assign_free_plan_if_missing(db, user)
 
-        token = create_access_token({"sub": str(user.id)})
-        return user, token
+        refresh_token = self._set_refresh_token(user)
+        await db.commit()
+
+        access_token = create_access_token({"sub": str(user.id)})
+        return user, access_token, refresh_token
 
     async def verify_email_code(self, db: AsyncSession, user_id: int, code: str):
         result = await db.execute(select(User).where(User.id == user_id))
@@ -219,6 +232,28 @@ class AuthService:
         user.password_reset_expires_at = None
         await db.commit()
 
+    async def refresh(self, db: AsyncSession, refresh_token: str):
+        result = await db.execute(
+            select(User).where(User.refresh_token == refresh_token)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user or not user.refresh_token_expires_at:
+            raise ValueError("Refresh token inválido")
+
+        expires_at = user.refresh_token_expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if datetime.now(timezone.utc) > expires_at:
+            raise ValueError("Refresh token expirado")
+
+        new_refresh_token = self._set_refresh_token(user)
+        await db.commit()
+
+        access_token = create_access_token({"sub": str(user.id)})
+        return access_token, new_refresh_token
+
     async def login_google(self, db: AsyncSession, id_token: str):
         google_user = await verify_google_token(id_token)
 
@@ -261,5 +296,8 @@ class AuthService:
 
             send_confirmation_email.delay(user.name, user.email, code)
 
-        token = create_access_token({"sub": str(user.id)})
-        return user, token
+        refresh_token = self._set_refresh_token(user)
+        await db.commit()
+
+        access_token = create_access_token({"sub": str(user.id)})
+        return user, access_token, refresh_token

@@ -16,6 +16,9 @@ class Settings:
         self.ACCESS_TOKEN_EXPIRE_MINUTES = int(
             os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
         )
+        self.REFRESH_TOKEN_EXPIRE_DAYS = int(
+            os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30")
+        )
 
         self.GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 

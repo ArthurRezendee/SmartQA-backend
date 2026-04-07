@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.core.database.async_db import get_db
+from app.core.dependencies import get_current_user_id
 from app.modules.plans.controller.plans_controller import PlansController
 
 router = APIRouter(
@@ -8,6 +9,14 @@ router = APIRouter(
 )
 
 controller = PlansController()
+
+
+@router.get("/me")
+async def get_my_plan(
+    user_id: int = Depends(get_current_user_id),
+    db=Depends(get_db)
+):
+    return await controller.get_my_plan(db, user_id)
 
 
 @router.get("/")

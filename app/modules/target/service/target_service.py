@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -75,6 +75,7 @@ class TargetService:
                 .where(
                     Target.owner_type == owner_type,
                     Target.owner_id == owner_id,
+                    Target.deleted_at.is_(None),
                 )
             )
             targets = result.scalars().unique().all()
@@ -92,7 +93,7 @@ class TargetService:
                     selectinload(Target.screens).selectinload(Screen.documents),
                     selectinload(Target.screens).selectinload(Screen.access_credentials),
                 )
-                .where(Target.id == target_id, Target.user_id == user_id)
+                .where(Target.id == target_id, Target.user_id == user_id, Target.deleted_at.is_(None))
             )
             target = result.scalar_one_or_none()
 
@@ -113,7 +114,7 @@ class TargetService:
                 sync_selectinload(Target.screens).selectinload(Screen.documents),
                 sync_selectinload(Target.screens).selectinload(Screen.access_credentials),
             )
-            .filter(Target.id == target_id, Target.user_id == user_id)
+            .filter(Target.id == target_id, Target.user_id == user_id, Target.deleted_at.is_(None))
             .first()
         )
 
@@ -207,6 +208,27 @@ class TargetService:
     async def delete(self, db: AsyncSession, target_id: int, user_id: int):
         try:
             result = await db.execute(
+                select(Target).where(
+                    Target.id == target_id,
+                    Target.user_id == user_id,
+                    Target.deleted_at.is_(None),
+                )
+            )
+            target = result.scalar_one_or_none()
+
+            if not target:
+                raise ValueError("Alvo não encontrado")
+
+            target.deleted_at = datetime.utcnow()
+            await db.commit()
+
+        except Exception as e:
+            await db.rollback()
+            raise ValueError(str(e))
+
+    async def restore(self, db: AsyncSession, target_id: int, user_id: int):
+        try:
+            result = await db.execute(
                 select(Target).where(Target.id == target_id, Target.user_id == user_id)
             )
             target = result.scalar_one_or_none()
@@ -214,8 +236,13 @@ class TargetService:
             if not target:
                 raise ValueError("Alvo não encontrado")
 
-            await db.delete(target)
+            if target.deleted_at is None:
+                raise ValueError("Alvo não está deletado")
+
+            target.deleted_at = None
             await db.commit()
+            await db.refresh(target)
+            return target.to_dict()
 
         except Exception as e:
             await db.rollback()

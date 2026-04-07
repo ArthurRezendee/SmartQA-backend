@@ -20,3 +20,6 @@ class TargetController:
 
     async def delete_target(self, db, target_id: int, user_id: int):
         return await self.service.delete(db, target_id, user_id)
+
+    async def restore_target(self, db, target_id: int, user_id: int):
+        return await self.service.restore(db, target_id, user_id)

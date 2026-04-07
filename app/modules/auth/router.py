@@ -9,6 +9,7 @@ from app.modules.auth.schemas.auth_schema import (
     VerifyEmailSchema,
     ForgotPasswordSchema,
     ResetPasswordSchema,
+    RefreshTokenSchema,
 )
 
 router = APIRouter(
@@ -51,3 +52,8 @@ async def forgot_password(data: ForgotPasswordSchema, db=Depends(get_db)):
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordSchema, db=Depends(get_db)):
     return await controller.reset_password(db, data)
+
+
+@router.post("/refresh")
+async def refresh(data: RefreshTokenSchema, db=Depends(get_db)):
+    return await controller.refresh(db, data)

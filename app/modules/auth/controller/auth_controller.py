@@ -10,7 +10,7 @@ class AuthController(BaseController):
 
     async def register(self, db, data):
         try:
-            user, token = await self.service.register(
+            user, access_token, refresh_token = await self.service.register(
                 db,
                 data.name,
                 data.email,
@@ -18,7 +18,8 @@ class AuthController(BaseController):
             )
             return success("Usuário criado com sucesso. Verifique seu e-mail.", {
                 "user_id": user.id,
-                "token": token,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "email_verified": user.email_verified,
             })
         except ValueError as e:
@@ -26,14 +27,15 @@ class AuthController(BaseController):
 
     async def login(self, db, data):
         try:
-            user, token = await self.service.login(
+            user, access_token, refresh_token = await self.service.login(
                 db,
                 data.email,
                 data.password
             )
             return success("Login realizado", {
                 "user_id": user.id,
-                "token": token,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "email_verified": user.email_verified,
             })
         except ValueError as e:
@@ -41,15 +43,26 @@ class AuthController(BaseController):
 
     async def google(self, db, data):
         try:
-            user, token = await self.service.login_google(db, data.token)
+            user, access_token, refresh_token = await self.service.login_google(db, data.token)
             return success("Login Google realizado", {
                 "user_id": user.id,
-                "token": token,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "email_verified": user.email_verified,
             })
         except Exception as e:
             print("❌ Google login error:", e)
             raise
+
+    async def refresh(self, db, data):
+        try:
+            access_token, refresh_token = await self.service.refresh(db, data.refresh_token)
+            return success("Token renovado", {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+            })
+        except ValueError as e:
+            return error(str(e))
 
     async def verify_email(self, db, user_id: int, data):
         try:

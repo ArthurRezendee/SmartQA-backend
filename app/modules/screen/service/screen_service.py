@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -45,6 +46,7 @@ class ScreenService:
                 .where(
                     Screen.owner_type == owner_type,
                     Screen.owner_id == owner_id,
+                    Screen.deleted_at.is_(None),
                 )
             )
             screens = result.scalars().unique().all()
@@ -65,6 +67,7 @@ class ScreenService:
                 .where(
                     Screen.id == screen_id,
                     Screen.user_id == user_id,
+                    Screen.deleted_at.is_(None),
                 )
             )
             screen = result.scalar_one_or_none()
@@ -86,7 +89,7 @@ class ScreenService:
                 sync_selectinload(Screen.documents),
                 sync_selectinload(Screen.access_credentials),
             )
-            .filter(Screen.id == screen_id, Screen.user_id == user_id)
+            .filter(Screen.id == screen_id, Screen.user_id == user_id, Screen.deleted_at.is_(None))
             .first()
         )
 
@@ -192,6 +195,27 @@ class ScreenService:
     async def delete(self, db: AsyncSession, screen_id: int, user_id: int):
         try:
             result = await db.execute(
+                select(Screen).where(
+                    Screen.id == screen_id,
+                    Screen.user_id == user_id,
+                    Screen.deleted_at.is_(None),
+                )
+            )
+            screen = result.scalar_one_or_none()
+
+            if not screen:
+                raise ValueError("Tela não encontrada")
+
+            screen.deleted_at = datetime.utcnow()
+            await db.commit()
+
+        except Exception as e:
+            await db.rollback()
+            raise ValueError(str(e))
+
+    async def restore(self, db: AsyncSession, screen_id: int, user_id: int):
+        try:
+            result = await db.execute(
                 select(Screen).where(Screen.id == screen_id, Screen.user_id == user_id)
             )
             screen = result.scalar_one_or_none()
@@ -199,8 +223,13 @@ class ScreenService:
             if not screen:
                 raise ValueError("Tela não encontrada")
 
-            await db.delete(screen)
+            if screen.deleted_at is None:
+                raise ValueError("Tela não está deletada")
+
+            screen.deleted_at = None
             await db.commit()
+            await db.refresh(screen)
+            return screen.to_dict()
 
         except Exception as e:
             await db.rollback()

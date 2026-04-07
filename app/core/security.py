@@ -3,6 +3,7 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta
 import jwt
 import random
+import secrets
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -31,3 +32,7 @@ def create_access_token(data: dict):
 
 def generate_verification_code() -> str:
     return f"{random.randint(0, 999999):06d}"
+
+
+def create_refresh_token() -> str:
+    return secrets.token_urlsafe(32)

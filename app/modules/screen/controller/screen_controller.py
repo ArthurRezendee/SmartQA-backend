@@ -20,3 +20,6 @@ class ScreenController:
 
     async def delete_screen(self, db, screen_id: int, user_id: int):
         return await self.service.delete(db, screen_id, user_id)
+
+    async def restore_screen(self, db, screen_id: int, user_id: int):
+        return await self.service.restore(db, screen_id, user_id)

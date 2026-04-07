@@ -103,3 +103,15 @@ async def delete_screen(
         await controller.delete_screen(db, screen_id, user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{screen_id}/restore", status_code=200)
+async def restore_screen(
+    screen_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    try:
+        return await controller.restore_screen(db, screen_id, user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

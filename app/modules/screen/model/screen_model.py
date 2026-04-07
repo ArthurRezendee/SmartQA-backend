@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 
@@ -34,6 +34,8 @@ class Screen(Base):
 
     # draft | active | archived
     status = Column(String(50), nullable=False, default="draft")
+
+    deleted_at = Column(DateTime, nullable=True, default=None)
 
     # ----------------------
     # RELACIONAMENTOS
