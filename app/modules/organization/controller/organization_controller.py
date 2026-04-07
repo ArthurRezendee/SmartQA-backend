@@ -1,3 +1,7 @@
+import os
+import uuid
+
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
@@ -7,6 +11,10 @@ from app.shared.responses import success, error
 from app.modules.organization.model.organization_model import Organization, OrganizationMember
 from app.modules.organization.schemas.organization_schema import OrganizationCreate, OrganizationUpdate, OrganizationMemberAdd, OrganizationMemberUpdate
 from app.modules.billing.model.billing_account_model import BillingAccount
+
+AVATAR_BASE_DIR = "/dados/organization"
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_SIZE_MB = 5
 
 
 class OrganizationController(BaseController):
@@ -48,6 +56,7 @@ class OrganizationController(BaseController):
                     "slug": org.slug,
                     "description": org.description,
                     "avatar_color": org.avatar_color,
+                    "avatar_url": org.avatar_url,
                     "owner_id": org.owner_id,
                     "role": member.role if member else "member",
                     "member_count": len(org.members),
@@ -97,6 +106,7 @@ class OrganizationController(BaseController):
                 "slug": org.slug,
                 "description": org.description,
                 "avatar_color": org.avatar_color,
+                "avatar_url": org.avatar_url,
                 "owner_id": org.owner_id,
                 "role": member.role,
                 "member_count": len(org.members),
@@ -238,6 +248,53 @@ class OrganizationController(BaseController):
         except Exception as e:
             await db.rollback()
             return error(f"Erro ao deletar organização: {str(e)}")
+
+    # ─── Avatar ───────────────────────────────────────────────────────────────
+
+    async def update_avatar(self, db: AsyncSession, slug: str, file: UploadFile, user_id: int):
+        try:
+            if file.content_type not in ALLOWED_TYPES:
+                return error("Formato inválido. Use JPEG, PNG ou WebP.")
+
+            contents = await file.read()
+            if len(contents) > MAX_SIZE_MB * 1024 * 1024:
+                return error(f"Arquivo muito grande. Máximo {MAX_SIZE_MB}MB.")
+
+            result = await db.execute(select(Organization).where(Organization.slug == slug))
+            org = result.scalar_one_or_none()
+            if not org:
+                return error("Organização não encontrada", status_code=404)
+
+            if org.owner_id != user_id:
+                return error("Apenas o owner pode alterar o avatar", status_code=403)
+
+            # Remove avatar anterior se existir
+            if org.avatar_url:
+                old_filepath = org.avatar_url if org.avatar_url.startswith("/dados/") else None
+                if old_filepath and os.path.isfile(old_filepath):
+                    os.remove(old_filepath)
+
+            ext = file.content_type.split("/")[-1].replace("jpeg", "jpg")
+            filename = f"{uuid.uuid4().hex}.{ext}"
+            org_dir = os.path.join(AVATAR_BASE_DIR, str(org.id))
+            os.makedirs(org_dir, exist_ok=True)
+
+            filepath = os.path.join(org_dir, filename)
+            with open(filepath, "wb") as f:
+                f.write(contents)
+
+            relative_path = filepath.replace("/dados", "", 1)
+            app_url = os.getenv("APP_URL", "http://localhost:8000")
+            public_url = f"{app_url}/dados{relative_path}"
+
+            org.avatar_url = public_url
+            await db.commit()
+
+            return success("Avatar atualizado com sucesso", {"avatar_url": public_url})
+
+        except Exception as e:
+            await db.rollback()
+            return error(f"Erro ao atualizar avatar: {str(e)}")
 
     # ─── Membros ──────────────────────────────────────────────────────────────
 

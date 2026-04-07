@@ -1,10 +1,11 @@
-"""Controle de status dos jobs de IA por alvo (Target)."""
+"""Controle de status dos jobs de IA por alvo (Target) e tela (Screen)."""
 import logging
 from datetime import datetime, timezone
 from sqlalchemy import func
 
 from app.modules.target.model.target_model import Target
 from app.modules.target.model.target_job_model import TargetJob
+from app.modules.screen.model.screen_job_model import ScreenJob
 
 logger = logging.getLogger(__name__)
 
@@ -62,5 +63,39 @@ def mark_job_error(db, target_id: int, job_type: str, error: Exception) -> None:
 
     db.query(Target).filter(Target.id == target_id).update(
         {"status": "error"},
+        synchronize_session=False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Screen jobs (documentação)
+# ---------------------------------------------------------------------------
+
+def mark_screen_job_running(db, screen_id: int, job_type: str) -> None:
+    db.query(ScreenJob).filter(
+        ScreenJob.screen_id == screen_id,
+        ScreenJob.job_type == job_type,
+    ).update(
+        {"status": "running", "started_at": datetime.now(timezone.utc)},
+        synchronize_session=False,
+    )
+
+
+def mark_screen_job_completed(db, screen_id: int, job_type: str) -> None:
+    db.query(ScreenJob).filter(
+        ScreenJob.screen_id == screen_id,
+        ScreenJob.job_type == job_type,
+    ).update(
+        {"status": "completed", "completed_at": datetime.now(timezone.utc)},
+        synchronize_session=False,
+    )
+
+
+def mark_screen_job_error(db, screen_id: int, job_type: str, error: Exception) -> None:
+    db.query(ScreenJob).filter(
+        ScreenJob.screen_id == screen_id,
+        ScreenJob.job_type == job_type,
+    ).update(
+        {"status": "error", "error_message": str(error)[:2000]},
         synchronize_session=False,
     )

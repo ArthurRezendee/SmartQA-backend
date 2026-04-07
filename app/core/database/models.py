@@ -5,6 +5,7 @@ import app.modules.user.model.user_model
 import app.modules.screen.model.screen_model
 import app.modules.screen.model.screen_document_model
 import app.modules.screen.model.access_credential_model
+import app.modules.screen.model.screen_job_model
 
 # Target (Alvo - execução de análise)
 import app.modules.target.model.target_model

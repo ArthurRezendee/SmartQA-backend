@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File
 
 from app.core.database.async_db import get_db
 from app.core.dependencies import get_current_user_id
@@ -64,6 +64,16 @@ async def respond_to_invitation(
 
 
 # ─── Operações por slug ───────────────────────────────────────────────────────
+
+@router.patch("/{slug}/avatar")
+async def update_avatar(
+    slug: str,
+    file: UploadFile = File(...),
+    user_id: int = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    return await controller.update_avatar(db, slug, file, user_id)
+
 
 @router.get("/{slug}")
 async def get_organization(

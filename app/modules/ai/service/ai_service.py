@@ -5,6 +5,7 @@ from app.core.celery_app import celery_app
 from app.modules.target.model.target_model import Target
 from app.modules.target.model.target_job_model import TargetJob
 from app.modules.screen.model.screen_model import Screen
+from app.modules.screen.model.screen_job_model import ScreenJob
 
 
 class AiService:
@@ -58,12 +59,59 @@ class AiService:
         if screen is None:
             raise ValueError(f"Tela {screen_id} não encontrada")
 
+        await db.execute(
+            delete(ScreenJob).where(
+                ScreenJob.screen_id == screen_id,
+                ScreenJob.job_type == "documentation",
+            )
+        )
+        db.add(ScreenJob(screen_id=screen_id, job_type="documentation", status="pending"))
+        await db.commit()
+
         celery_app.send_task(
             "jobs.ia.generate_documentation",
             kwargs={"screen_id": screen_id, "user_id": user_id},
         )
 
-        return {"status": "processing", "screen_id": screen_id}
+        return {"status": "pending", "screen_id": screen_id}
+
+    async def get_screen_doc_status(self, db: AsyncSession, screen_id: int, user_id: int) -> dict:
+        result = await db.execute(
+            select(Screen).where(
+                Screen.id == screen_id,
+                Screen.user_id == user_id,
+            )
+        )
+        screen = result.scalar_one_or_none()
+        if screen is None:
+            raise ValueError(f"Tela {screen_id} não encontrada")
+
+        job_result = await db.execute(
+            select(ScreenJob).where(
+                ScreenJob.screen_id == screen_id,
+                ScreenJob.job_type == "documentation",
+            )
+        )
+        job = job_result.scalar_one_or_none()
+
+        if job is None:
+            return {
+                "screen_id": screen_id,
+                "status": "not_requested",
+                "job": None,
+            }
+
+        return {
+            "screen_id": screen_id,
+            "status": job.status,
+            "job": {
+                "job_type": job.job_type,
+                "status": job.status,
+                "started_at": job.started_at,
+                "completed_at": job.completed_at,
+                "error_message": job.error_message,
+            },
+        }
 
     async def get_target_jobs(self, db: AsyncSession, target_id: int, user_id: int) -> dict:
         result = await db.execute(

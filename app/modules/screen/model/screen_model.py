@@ -68,6 +68,12 @@ class Screen(Base):
         lazy="selectin",
     )
 
+    jobs = relationship(
+        "ScreenJob",
+        back_populates="screen",
+        cascade="all, delete-orphan",
+    )
+
     # Alvos que referenciam esta tela (many-to-many via target_screens)
     targets = relationship(
         "Target",

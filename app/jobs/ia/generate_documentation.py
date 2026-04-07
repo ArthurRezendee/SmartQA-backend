@@ -12,6 +12,7 @@ from app.modules.ai.utils.ai_utils import AiUtils
 from app.modules.ai.service.docs_generator_service import DocumentationAgent
 from app.modules.ai.service.screen_explorer_service import ScreenExplorerService
 from app.modules.documentation.model.documentation_model import Documentation
+from app.jobs.ia._jobs import mark_screen_job_running, mark_screen_job_completed, mark_screen_job_error
 from sqlalchemy import func
 
 
@@ -31,6 +32,9 @@ def generate_documentation(*, screen_id: int, user_id: int):
     db = SessionLocal()
 
     try:
+        mark_screen_job_running(db, screen_id, "documentation")
+        db.commit()
+
         screen_service = ScreenService()
         screen = screen_service.get_or_fail_sync(
             db=db,
@@ -139,6 +143,7 @@ def generate_documentation(*, screen_id: int, user_id: int):
         )
 
         db.add(documentation)
+        mark_screen_job_completed(db, screen_id, "documentation")
         db.commit()
 
         logger.info(
@@ -155,6 +160,13 @@ def generate_documentation(*, screen_id: int, user_id: int):
     except Exception as e:
         db.rollback()
         logger.exception("❌ Erro no job generate_documentation")
+
+        try:
+            mark_screen_job_error(db, screen_id, "documentation", e)
+            db.commit()
+        except Exception:
+            db.rollback()
+
         raise
 
     finally:

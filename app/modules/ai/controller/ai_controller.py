@@ -35,3 +35,10 @@ class AiController(BaseController):
             target_id=target_id,
             user_id=user_id,
         )
+
+    async def get_screen_doc_status(self, db, screen_id: int, user_id: int):
+        return await self.service.get_screen_doc_status(
+            db=db,
+            screen_id=screen_id,
+            user_id=user_id,
+        )

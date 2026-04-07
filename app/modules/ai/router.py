@@ -95,3 +95,17 @@ async def generate_documentation_for_screen(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erro interno ao gerar documentação")
+
+
+@router.get("/documentation/screen/{screen_id}/status")
+async def get_screen_doc_status(
+    screen_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    try:
+        return await controller.get_screen_doc_status(db=db, screen_id=screen_id, user_id=user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar status da documentação")

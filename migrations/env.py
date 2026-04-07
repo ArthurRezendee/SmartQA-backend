@@ -19,6 +19,7 @@ from app.modules.user.model.process_notification_model import ProcessNotificatio
 # Screen (Tela - fonte de conhecimento)
 from app.modules.screen.model.screen_model import Screen
 from app.modules.screen.model.screen_document_model import ScreenDocument
+from app.modules.screen.model.screen_job_model import ScreenJob
 
 # Target (Alvo - execução de análise)
 from app.modules.target.model.target_model import Target
