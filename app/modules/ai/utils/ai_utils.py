@@ -57,10 +57,22 @@ Acesse a URL abaixo:
 CONTEXTO ADICIONAL FORNECIDO PELO QA
 ==================================================
 
-Use as informações abaixo para entender a regra de negócio da tela e
-GUIAR a exploração, evitando interações desnecessárias.
-
 {analysis.get("screen_context") or "Nenhum contexto adicional fornecido."}
+
+==================================================
+PASSO 1 — MAPEAMENTO OBRIGATÓRIO (FAÇA ANTES DE QUALQUER OUTRA COISA)
+==================================================
+
+Antes de escrever qualquer descrição, execute a sequência abaixo:
+
+1. Role a página do TOPO ao FUNDO completamente (use scroll até não aparecer mais conteúdo novo).
+2. Registre mentalmente CADA SEÇÃO visível pelo seu TÍTULO EXATO como aparece na tela
+   (ex: "Como funciona", "Planos e preços", "Depoimentos", "FAQ", "Entre em contato").
+3. Para cada seção, anote: título exato, conteúdo principal, elementos interativos presentes.
+4. Expanda accordions, abas, carrosséis, menus, dropdowns e modais que existirem.
+5. Identifique e anote os textos exatos de todos os botões de ação (CTA).
+6. Anote todos os campos de formulário com seus labels/placeholders exatos.
+7. NÃO avance para escrever os campos do JSON até ter feito este mapeamento completo.
 
 ==================================================
 OBJETIVO DA EXPLORAÇÃO
@@ -68,39 +80,19 @@ OBJETIVO DA EXPLORAÇÃO
 
 Você está atuando como um QA Sênior especializado em testes funcionais de interfaces web.
 
-Seu objetivo é EXPLORAR a tela cuidadosamente e retornar QUATRO DESCRIÇÕES diferentes,
-em formato JSON, que serão usadas por outros agentes do sistema:
-
-1) tests_description: descrição técnica/funcional voltada para geração de casos de teste
-2) playwright_description: descrição voltada para automação Playwright
-3) documentation_description: descrição voltada para documentação funcional
-4) uiux_description: avaliação crítica UI/UX com melhorias sugeridas
+Seu objetivo é EXPLORAR a tela de forma EXAUSTIVA e retornar QUATRO DESCRIÇÕES diferentes,
+em formato JSON, usadas por outros agentes do sistema.
 
 ==================================================
 REGRAS DE EXPLORAÇÃO
 ==================================================
 
 - NÃO saia da tela atual (não navegue para outras URLs)
-- Explore SOMENTE o que é acessível a partir desta tela
-- Priorize a exploração dos fluxos e regras mencionados no contexto do QA
-- Evite explorar elementos irrelevantes ao objetivo da tela
-- Interaja com botões, abas, campos, modais e menus quando forem relevantes
-- Observe comportamentos normais e comportamentos inesperados
-- Identifique estados diferentes da interface (ex: vazio, carregando, erro, sucesso)
-
-==================================================
-O QUE DESCREVER (OBRIGATÓRIO)
-==================================================
-
-Durante a exploração, identifique e use como base:
-
-- Estrutura geral da tela
-- Elementos interativos relevantes
-- Fluxos possíveis do usuário
-- Comportamentos da interface
-- Estados da tela (vazio, carregando, erro, sucesso)
-- Limitações observáveis
-- Validações e regras aparentes
+- Role a página INTEIRA antes de descrever qualquer coisa
+- Interaja com TODOS os elementos interativos relevantes: abas, accordions, carrosséis, filtros, modais
+- Registre o TEXTO EXATO de títulos, botões, labels e placeholders — nunca parafaseie
+- Observe e descreva estados distintos da interface (vazio, carregando, erro, sucesso)
+- NÃO assuma o que a tela faz — descreva SOMENTE o que foi realmente observado
 
 ==================================================
 REGRAS DE SAÍDA (MUITO IMPORTANTE)
@@ -117,31 +109,36 @@ DEVE CONTER EXATAMENTE AS CHAVES ABAIXO:
   "uiux_description": "string"
 }}
 
-REGRAS IMPORTANTES PARA CADA CAMPO:
+REGRAS PARA CADA CAMPO:
 
 - tests_description:
-  - descrição contínua, clara, detalhada e objetiva
-  - SEM markdown, SEM listas numeradas, SEM títulos
-  - SEM opinião, SEM sugestões de melhoria
-  - NÃO mencione QA, testes ou agentes
+  - Descreva CADA SEÇÃO da tela separadamente, na ordem em que aparece.
+  - Para cada seção: nome exato, propósito, elementos interativos, comportamentos observados.
+  - Inclua: fluxos possíveis, validações visíveis, estados da interface, edge cases observáveis.
+  - SEM markdown, SEM listas numeradas, SEM títulos no texto.
+  - SEM opinião, SEM sugestões de melhoria, NÃO mencione QA ou agentes.
 
 - playwright_description:
-  - descrição objetiva e acionável para automação
-  - cite elementos e ações comuns (campos, botões, modais, tabelas, filtros, paginação)
-  - sugira âncoras para seletores (label, placeholder, texto do botão)
-  - Caso haja autenticacão na tela, descreva os campos para login e seus id's ou referencias.
-
+  - Liste cada elemento interativo com: tipo, texto/label/placeholder EXATO, atributos id/name/aria quando visíveis.
+  - Para botões: texto exato do botão.
+  - Para campos: label exato e placeholder exato.
+  - Para links: texto exato e destino se visível.
+  - Para formulários: todos os campos, validações visíveis, botão de submit.
+  - Se houver login: descreva campos e referências de seletor.
+  - Estruture como inventário de elementos por seção da tela.
 
 - documentation_description:
-  - linguagem clara, explicando o propósito da tela e como usar
-  - descreva passos de uso e comportamentos
-  - SEM markdown
+  - Liste TODAS as seções da página pelo TÍTULO EXATO que aparece na tela, na ordem de aparição.
+  - Para cada seção: título exato, o que ela contém, quem é o público-alvo daquela seção.
+  - Descreva os fluxos de uso reais que um usuário executaria nesta tela.
+  - SEM markdown. Baseie-se 100% no que foi observado — ZERO invenção.
 
 - uiux_description:
-  - avaliação crítica com melhorias sugeridas
-  - inclua acessibilidade, consistência, hierarquia, mensagens, estados vazios/loading, prevenção de erro
-  - SEM markdown
-  
+  - Avaliação crítica com base no que foi realmente observado.
+  - Inclua: acessibilidade, hierarquia visual, consistência, mensagens de feedback, estados vazios/loading, prevenção de erros.
+  - Cite elementos ESPECÍFICOS da tela ao fazer críticas.
+  - SEM markdown.
+
 PROIBIDO:
 - NÃO use write_file
 - NÃO escreva arquivos
@@ -203,39 +200,39 @@ NÃO inclua nenhum texto fora do JSON.
     REGRAS OBRIGATÓRIAS (SEM EXCEÇÃO)
     ==================================================
 
-    1. NÃO invente funcionalidades que não estejam descritas na interface
-    2. NÃO assuma integrações externas não mencionadas
-    3. NÃO descreva testes genéricos, repetidos ou vagos
-    4. NÃO explique o que está fazendo
-    5. NÃO utilize markdown
-    6. NÃO retorne texto fora do JSON
-    7. Cada caso de teste deve validar UM objetivo claro
-    8. Cada passo deve representar UMA ação do usuário OU UMA verificação clara
-    9. NÃO inclua comentários no JSON
-    10. NÃO use chaves diferentes do formato especificado
-    
-    REQUISITO DE QUANTIDADE:
-    - Você DEVE gerar NO MÍNIMO 40 (QUARENTA) casos de teste distintos.
-    - Se a tela parecer simples, mesmo assim crie variações reais e relevantes:
-    - combinações de filtros
-    - paginação/ordenação
-    - estados vazios
-    - validações de campos
-    - permissões/ações desabilitadas
-    - falhas de rede/timeout
-    - concorrência (alteração simultânea)
-    - duplicidade
-    - caracteres especiais, limites e formatos
-    - Se necessário, gere 50+.
+    1. NÃO invente funcionalidades — cada teste deve referenciar explicitamente um elemento,
+       ação ou comportamento DESCRITO na interface abaixo.
+    2. NÃO assuma integrações externas não mencionadas.
+    3. NÃO descreva testes genéricos sem ancoragem na interface real.
+       ERRADO: "Verificar que a página carrega corretamente."
+       CERTO: "Verificar que a seção 'Como funciona' exibe os 3 passos ao acessar a página."
+    4. NÃO explique o que está fazendo.
+    5. NÃO utilize markdown.
+    6. NÃO retorne texto fora do JSON.
+    7. Cada caso de teste deve validar UM objetivo claro e específico.
+    8. Cada passo deve referenciar UM elemento REAL da interface (pelo nome/label observado).
+    9. NÃO inclua comentários no JSON.
+    10. NÃO use chaves diferentes do formato especificado.
 
-    Os testes devem cobrir:
-    - Fluxos principais da tela
-    - Variações válidas e inválidas de uso
-    - Estados alternativos da interface (vazio, carregando, erro, sucesso)
-    - Erros comuns de usuário
-    - Situações limite (edge cases)
-    - Regressões prováveis
-    - Comportamentos que podem gerar bugs críticos
+    ÂNCORAGEM OBRIGATÓRIA:
+    - Cada título de teste deve mencionar o ELEMENTO ou SEÇÃO REAL envolvido.
+    - Cada step "action" deve mencionar o ELEMENTO EXATO sendo manipulado (ex: botão "Começar agora", campo "E-mail", seção "Planos").
+    - Se a interface não possui um determinado elemento, NÃO crie testes para ele.
+
+    REQUISITO DE QUANTIDADE:
+    - Gere o MÁXIMO de casos distintos que a interface suporta com fidelidade.
+    - NÃO force testes inexistentes apenas para atingir um número.
+    - Para interfaces ricas: gere 30-50+ casos cobrindo todos os elementos e fluxos.
+    - Para interfaces simples: gere somente os casos realmente aplicáveis (pode ser 10-20).
+    - Priorize qualidade e precisão sobre quantidade.
+
+    Quando aplicável, cubra:
+    - Cada seção/bloco da interface individualmente
+    - Cada botão de ação (CTA) e seu comportamento
+    - Cada campo de formulário (preenchimento válido, inválido, vazio)
+    - Fluxos completos do usuário (do início ao fim)
+    - Estados distintos (vazio, com dados, carregando, erro)
+    - Edge cases baseados em comportamentos OBSERVADOS
 
     ==================================================
     DIVERSIDADE DE TESTES (OBRIGATÓRIO)
@@ -592,19 +589,23 @@ REGRAS IMPORTANTES:
 
     - Gere testes com Playwright Test Runner (@playwright/test)
     - Use TypeScript por padrão
-    - Use seletores estáveis:
-    - priorize getByRole(), getByLabel(), getByPlaceholder(), getByText()
-    - se necessário use locator('#id') conforme indicado na descrição
-    - Evite seletores frágeis (css baseado em nth-child, classes dinâmicas, etc)
+    - Use seletores estáveis baseados no que foi observado:
+      - getByRole() com o nome/label EXATO do elemento
+      - getByLabel() com o label EXATO do campo
+      - getByPlaceholder() com o placeholder EXATO
+      - getByText() com o texto EXATO visível
+      - locator('#id') apenas se o id foi mencionado na descrição
+    - NUNCA invente seletores para elementos não descritos
+    - NUNCA use seletores frágeis (nth-child, classes dinâmicas, XPath genérico)
     - Inclua waits inteligentes:
-    - aguarde navegação e carregamento
-    - evite timeouts fixos (waitForTimeout) a menos que seja inevitável
-    - Separe testes em blocos `test.describe`
-    - Use `beforeEach` para login/navegação se fizer sentido
-    - Não invente elementos que não existem na descrição
-    - Caso algum passo seja incerto, implemente fallback com tentativas seguras e asserts suaves
-    - Se houver modais, valide abertura e fechamento
-    - Se houver paginação, valide troca de limite (10/50/100/1000) quando aplicável
+      - aguarde navegação e carregamento com waitForLoadState ou expect().toBeVisible()
+      - evite waitForTimeout fixo a menos que seja inevitável
+    - Separe testes em blocos test.describe por seção/funcionalidade da tela
+    - Use beforeEach para login/navegação quando aplicável
+    - Se um elemento não existe na descrição, NÃO crie interação com ele
+    - Se houver modais: valide abertura E fechamento
+    - Se houver formulários: teste preenchimento válido, inválido e campos obrigatórios vazios
+    - Se houver paginação ou filtros: teste somente os que foram descritos explicitamente
 
     ==================================================
     RESTRIÇÕES DO QA
@@ -676,50 +677,55 @@ REGRAS IMPORTANTES:
     Você é um **Analista de Sistemas Sênior / QA Funcional** especializado em
     documentação funcional de sistemas web.
 
-    Seu objetivo é gerar uma **DOCUMENTAÇÃO FUNCIONAL CLARA, COMPLETA E BEM ESTRUTURADA**
+    Seu objetivo é gerar uma **DOCUMENTAÇÃO FUNCIONAL PRECISA, COMPLETA E BEM ESTRUTURADA**
     para a tela descrita abaixo.
+
+    REGRA ABSOLUTA: Documente SOMENTE o que está descrito nas informações fornecidas.
+    NUNCA invente seções, funcionalidades, fluxos ou elementos que não apareçam na descrição.
+    Se a informação não estiver na descrição, NÃO escreva sobre ela.
 
     Essa documentação será **exportada para Word / Pages / Google Docs**, portanto:
 
     - Utilize **Markdown simples e semântico**
     - Use `#` apenas para o título principal do documento
     - Use `##` para seções principais
-    - Use `###` para subseções
+    - Use `###` para subseções (use os nomes REAIS da interface, não nomes genéricos)
     - Use listas simples com `-`
     - NÃO use emojis
     - NÃO use HTML
     - NÃO use tabelas complexas
     - NÃO use formatação decorativa excessiva
-    - Clareza e organização são prioridade absoluta
+    - Clareza e precisão são prioridade absoluta
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     CONTEXTO DA ANÁLISE
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    - Analysis ID: {analysis_id}
     - Nome da tela / feature: {name}
     - URL da tela: {target_url}
 
-    Descrição geral:
+    Descrição geral fornecida pelo QA:
     {description}
 
-    Contexto da tela:
+    Contexto de negócio:
     {screen_context}
 
-    Instruções específicas:
+    DESCRIÇÃO DETALHADA DA TELA (sua fonte primária — use 100% do que está aqui):
     {documentation_description}
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    O QUE VOCÊ DEVE GERAR
+    REGRAS DE GERAÇÃO
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    Gere uma documentação funcional completa **EXCLUSIVAMENTE em Markdown**,
-    seguindo exatamente a estrutura abaixo.
-
-    Não invente regras.
-    Não faça suposições fora do contexto.
-    Não escreva código.
-    Não cite ferramentas de teste.
+    - Não invente regras de negócio.
+    - Não faça suposições fora do que foi descrito.
+    - Não escreva código.
+    - Não cite ferramentas de teste.
+    - Os nomes de seções e elementos devem refletir os NOMES REAIS observados na tela.
+      Exemplo: se a seção se chama "Como funciona", use "Como funciona" — não "Funcionalidades".
+    - Se a tela for uma landing page, documente cada seção da landing page pelo título real.
+    - Se a tela for um formulário, documente cada campo pelo label real.
+    - Se a tela for um dashboard, documente cada widget/card pelo nome real.
 
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     ESTRUTURA OBRIGATÓRIA
@@ -727,55 +733,61 @@ REGRAS IMPORTANTES:
 
     # Documentação Funcional – {name}
 
-    ## 1. Visão Geral da Tela
+    ## 1. Visão Geral
     - Objetivo principal da tela
-    - Público-alvo (tipo de usuário)
+    - Público-alvo
+    - URL de acesso
 
-    ## 2. Elementos da Interface
-    Liste todos os elementos visíveis da tela.
+    ## 2. Estrutura da Tela
+    Liste todas as seções da tela na ordem em que aparecem.
+    Use o título EXATO de cada seção conforme aparece na interface.
 
-    Para cada elemento relevante, utilize subseções.
+    ### [Título exato da seção 1]
+    - O que esta seção contém
+    - Propósito para o usuário
 
-    ### Nome do Elemento
-    - Tipo do elemento
+    ### [Título exato da seção 2]
+    - O que esta seção contém
+    - Propósito para o usuário
+
+    (repita para todas as seções observadas)
+
+    ## 3. Elementos Interativos
+    Liste todos os elementos com os quais o usuário pode interagir.
+    Use os labels/textos REAIS dos elementos.
+
+    ### [Nome/label real do elemento]
+    - Tipo (botão, campo, link, menu, etc.)
     - Finalidade
-    - Observações importantes
+    - Comportamento ao interagir
+    - Restrições ou validações observadas
 
-    ## 3. Comportamento dos Elementos
-    Descreva como cada elemento interativo se comporta.
-
-    ### Nome do Elemento
-    - Ação ao interagir
-    - Estados possíveis
-    - Restrições
-
-    ## 4. Fluxos Funcionais
+    ## 4. Fluxos de Uso
 
     ### Fluxo Principal
-    Passo a passo do fluxo esperado (happy path).
+    Descreva passo a passo o fluxo principal do usuário nesta tela.
+    Base-se SOMENTE nos elementos e ações observados.
 
     ### Fluxos Alternativos
-    Descreva variações possíveis do fluxo.
+    Descreva variações do fluxo principal, se existirem.
+    Omita esta subseção se não houver fluxos alternativos observados.
 
-    ### Fluxos de Erro
-    Descreva comportamentos em cenários inválidos.
+    ### Cenários de Erro ou Validação
+    Descreva os comportamentos em entradas inválidas ou erros, se observados.
+    Omita esta subseção se não houver erros/validações observados.
 
     ## 5. Regras de Negócio
-    Liste regras explícitas ou implícitas:
-    - Validações
-    - Dependências
-    - Condições obrigatórias
+    Liste apenas regras EXPLICITAMENTE observadas ou mencionadas no contexto.
+    Se nenhuma regra explícita foi observada, escreva: "Nenhuma regra de negócio explícita identificada na interface."
 
-    ## 6. Mensagens e Feedback ao Usuário
-    - Mensagens de sucesso
-    - Mensagens de erro
-    - Mensagens de validação
-    - Feedback visual relevante
+    ## 6. Mensagens e Feedback
+    Liste as mensagens reais exibidas na interface (sucesso, erro, validação, aviso).
+    Se nenhuma mensagem foi observada, escreva: "Nenhuma mensagem de feedback observada durante a análise."
 
-    ## 7. Observações Importantes
-    - Pontos de atenção para QA
-    - Limitações conhecidas
-    - Ambiguidades encontradas
+    ## 7. Observações
+    - Pontos de atenção identificados
+    - Limitações observadas na interface
+    - Ambiguidades ou lacunas de informação
 
     Gere a documentação agora.
     """

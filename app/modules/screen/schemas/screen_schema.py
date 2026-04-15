@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 
 class ScreenCreate(BaseModel):
@@ -10,6 +10,11 @@ class ScreenCreate(BaseModel):
     organization_id: Optional[int] = None
 
 
+class AccessCredentialInput(BaseModel):
+    field_name: str
+    value: str
+
+
 class ScreenUpdate(BaseModel):
     name: Optional[str] = None
     url: Optional[str] = None
@@ -18,6 +23,7 @@ class ScreenUpdate(BaseModel):
     documentation_description: Optional[str] = None
     uiux_description: Optional[str] = None
     status: Optional[str] = None
+    access_credentials: Optional[List[AccessCredentialInput]] = None
 
 
 class ScreenResponse(BaseModel):

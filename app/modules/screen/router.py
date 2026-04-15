@@ -88,7 +88,10 @@ async def update_screen(
     db=Depends(get_db),
 ):
     try:
-        return await controller.update_screen(db, screen_id, data.dict(exclude_none=True), user_id)
+        payload = data.dict(exclude_none=True)
+        if "access_credentials" in payload:
+            payload["access_credentials"] = [c.dict() for c in data.access_credentials]
+        return await controller.update_screen(db, screen_id, payload, user_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -24,10 +24,8 @@ class ScreenService:
 
     def _serialize(self, screen: Screen, include_docs: bool = False) -> dict:
         data = screen.to_dict()
-        data["access_credentials"] = [
-            {"id": c.id, "field_name": c.field_name}
-            for c in (screen.access_credentials or [])
-        ]
+        data["access_credentials"] = screen.access_credentials or []
+        
         if include_docs:
             data["documents"] = [
                 {"id": doc.id, "type": doc.type, "path": doc.path}
@@ -172,21 +170,42 @@ class ScreenService:
     async def update(self, db: AsyncSession, screen_id: int, data: dict, user_id: int):
         try:
             result = await db.execute(
-                select(Screen).where(Screen.id == screen_id, Screen.user_id == user_id)
+                select(Screen)
+                .options(selectinload(Screen.access_credentials))
+                .where(Screen.id == screen_id, Screen.user_id == user_id)
             )
             screen = result.scalar_one_or_none()
 
             if not screen:
                 raise ValueError("Tela não encontrada")
 
+            access_credentials = data.pop("access_credentials", None)
+
             for field, value in data.items():
                 if value is not None and hasattr(screen, field):
                     setattr(screen, field, value)
 
-            await db.commit()
-            await db.refresh(screen)
+            if access_credentials is not None:
+                for cred in screen.access_credentials:
+                    await db.delete(cred)
 
-            return screen.to_dict()
+                for cred in access_credentials:
+                    db.add(AccessCredential(
+                        screen_id=screen.id,
+                        field_name=cred["field_name"],
+                        value=cred["value"],
+                    ))
+
+            await db.commit()
+
+            result = await db.execute(
+                select(Screen)
+                .options(selectinload(Screen.access_credentials))
+                .where(Screen.id == screen_id)
+            )
+            screen = result.scalar_one()
+
+            return self._serialize(screen)
 
         except Exception as e:
             await db.rollback()
