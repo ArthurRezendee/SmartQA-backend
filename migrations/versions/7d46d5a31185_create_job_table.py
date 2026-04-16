@@ -33,8 +33,6 @@ def upgrade() -> None:
                existing_server_default=sa.text('now()'))
     op.drop_constraint(op.f('organizations_billing_account_id_fkey'), 'organizations', type_='foreignkey')
     op.drop_column('organizations', 'billing_account_id')
-    op.drop_column('qa_analyses', 'batch_jobs_completed')
-    op.drop_column('qa_analyses', 'batch_jobs_total')
     # ### end Alembic commands ###
 
 
