@@ -3,7 +3,7 @@ import uuid
 
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 
 from app.shared.controller import BaseController
@@ -11,6 +11,7 @@ from app.shared.responses import success, error
 from app.modules.organization.model.organization_model import Organization, OrganizationMember
 from app.modules.organization.schemas.organization_schema import OrganizationCreate, OrganizationUpdate, OrganizationMemberAdd, OrganizationMemberUpdate
 from app.modules.billing.model.billing_account_model import BillingAccount
+from app.modules.plans.model.plan_model import Plan
 
 AVATAR_BASE_DIR = "/dados/organization"
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -135,6 +136,21 @@ class OrganizationController(BaseController):
 
     async def create_organization(self, db: AsyncSession, data: OrganizationCreate, user_id: int):
         try:
+            # valida se o plano existe e é de escopo organization
+            plan_result = await db.execute(select(Plan).where(Plan.id == data.plan_id))
+            plan = plan_result.scalar_one_or_none()
+            if not plan or plan.scope != "organization":
+                return error("Plano inválido para organização")
+
+            # limite de 1 org ativa por owner
+            owned_count_result = await db.execute(
+                select(func.count()).where(
+                    and_(Organization.owner_id == user_id, Organization.is_active == True)
+                )
+            )
+            if owned_count_result.scalar() >= 1:
+                return error("Você já possui uma organização ativa. Delete-a antes de criar uma nova.")
+
             # verifica slug único
             existing = await db.execute(
                 select(Organization).where(Organization.slug == data.slug)
