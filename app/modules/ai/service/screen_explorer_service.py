@@ -7,7 +7,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-_BROWSER_EXECUTABLE = os.getenv("BROWSER_EXECUTABLE_PATH", "/root/.cache/ms-playwright/chromium-1200/chrome-linux-64/chrome")
+_BROWSER_EXECUTABLE = os.getenv("BROWSER_EXECUTABLE_PATH", "/root/.cache/ms-playwright/chromium-1200/chrome-linux-64")
 _RETRY_DELAY_SECONDS = 5
 
 
