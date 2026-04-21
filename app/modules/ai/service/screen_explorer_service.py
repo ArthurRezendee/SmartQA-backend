@@ -3,10 +3,11 @@ import logging
 import time
 from browser_use import Agent, Browser, ChatBrowserUse
 from app.modules.ai.utils.ai_utils import AiUtils
+import os
 
 logger = logging.getLogger(__name__)
 
-_BROWSER_EXECUTABLE = "/root/.cache/ms-playwright/chromium-1200/chrome-linux/chrome"
+_BROWSER_EXECUTABLE = os.getenv("BROWSER_EXECUTABLE_PATH", "/root/.cache/ms-playwright/chromium-1200/chrome-linux-64/chrome")
 _RETRY_DELAY_SECONDS = 5
 
 
