@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import time
-from browser_use import Agent, Browser, ChatBrowserUse
+from browser_use import Agent, Browser
+from browser_use.llm import ChatOpenAI
 from app.modules.ai.utils.ai_utils import AiUtils
 import os
 
@@ -17,7 +18,7 @@ class ScreenExplorerService:
             analysis.get("access_credentials") or []
         )
 
-        llm = ChatBrowserUse()
+        llm = ChatOpenAI(model="gpt-4o")
 
         required = {
             "tests_description",
