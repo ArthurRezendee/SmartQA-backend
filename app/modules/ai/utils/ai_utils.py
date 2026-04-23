@@ -8,6 +8,34 @@ from docling.document_converter import DocumentConverter
 import textwrap
 
 
+def _sanitize_json_strings(s: str) -> str:
+    """
+    Percorre o JSON char a char e escapa newlines/tabs/CR literais que aparecem
+    dentro de valores de string. LLMs às vezes emitem \n real em vez de \\n.
+    """
+    result = []
+    in_string = False
+    escaped = False
+    for ch in s:
+        if escaped:
+            result.append(ch)
+            escaped = False
+        elif ch == "\\":
+            result.append(ch)
+            escaped = True
+        elif ch == '"':
+            in_string = not in_string
+            result.append(ch)
+        elif in_string and ch == "\n":
+            result.append("\\n")
+        elif in_string and ch == "\r":
+            result.append("\\r")
+        elif in_string and ch == "\t":
+            result.append("\\t")
+        else:
+            result.append(ch)
+    return "".join(result)
+
 
 class AiUtils:
     """
@@ -459,7 +487,6 @@ REGRAS IMPORTANTES:
         raw = result.strip()
 
         # 1) tenta pegar o primeiro bloco JSON {...}
-        # (isso evita lixo tipo "Final Result:" etc)
         m = re.search(r"\{.*\}", raw, flags=re.DOTALL)
         if m:
             raw = m.group(0).strip()
@@ -470,15 +497,20 @@ REGRAS IMPORTANTES:
         except json.JSONDecodeError:
             pass
 
-        # 3) se estiver escapado tipo {\"a\":1}
-        # troca \" por "
+        # 3) sanitiza newlines/tabs literais dentro de strings JSON e tenta novamente
+        # (LLMs às vezes emitem \n real em vez de \\n dentro dos valores)
+        try:
+            return json.loads(_sanitize_json_strings(raw))
+        except json.JSONDecodeError:
+            pass
+
+        # 4) se estiver escapado tipo {\"a\":1}, desfaz e tenta
         try:
             unescaped = raw.replace('\\"', '"')
             return json.loads(unescaped)
         except json.JSONDecodeError:
             pass
 
-      
         try:
             evaluated = ast.literal_eval(raw)
             if isinstance(evaluated, str):
