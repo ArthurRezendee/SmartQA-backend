@@ -269,18 +269,20 @@ NÃO inclua nenhum texto fora do JSON.
     - Cada step "action" deve mencionar o ELEMENTO EXATO sendo manipulado (ex: botão "Começar agora", campo "E-mail", seção "Planos").
     - Se a interface não possui um determinado elemento, NÃO crie testes para ele.
 
-    REQUISITO DE QUANTIDADE:
-    - Gere todos os casos relevantes DENTRO DO ESCOPO definido no objetivo.
-    - NÃO force testes inexistentes apenas para atingir um número.
-    - Priorize qualidade e precisão sobre quantidade.
+    REQUISITO DE COBERTURA (OBRIGATÓRIO):
+    Esgote todos os cenários que a interface suporta dentro do escopo.
+    Para cada elemento real da interface, cubra:
+    - Cada seção/bloco individualmente
+    - Cada botão de ação: o que acontece ao clicar
+    - Cada campo de formulário: preenchimento válido, inválido e vazio
+    - Cada fluxo completo do usuário (do início ao fim)
+    - Cada estado distinto observado (vazio, com dados, carregando, erro, sucesso)
+    - Cada edge case baseado em comportamento OBSERVADO
 
-    Quando aplicável, cubra:
-    - Cada seção/bloco da interface individualmente
-    - Cada botão de ação (CTA) e seu comportamento
-    - Cada campo de formulário (preenchimento válido, inválido, vazio)
-    - Fluxos completos do usuário (do início ao fim)
-    - Estados distintos (vazio, com dados, carregando, erro)
-    - Edge cases baseados em comportamentos OBSERVADOS
+    Se a interface é rica, 30-50+ casos são esperados e desejados.
+    Se a interface é simples, gere somente os casos realmente aplicáveis.
+    NÃO repita casos com variações mínimas.
+    NÃO crie casos para elementos inexistentes na interface.
 
     ==================================================
     DIVERSIDADE DE TESTES (OBRIGATÓRIO)
@@ -738,7 +740,6 @@ REGRAS IMPORTANTES:
             v = str(value).strip()
             return v if v else fallback
 
-        analysis_id = s(analysis.get("id"), "N/A")
         name = s(analysis.get("name"), "Sem nome")
         target_url = s(analysis.get("target_url"), "N/A")
         description = s(analysis.get("description"), "")
