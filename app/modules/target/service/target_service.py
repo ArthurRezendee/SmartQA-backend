@@ -135,7 +135,7 @@ class TargetService:
                     for d in (s.documents or [])
                 ]
             screen_dict["access_credentials"] = [
-                {"id": c.id, "field_name": c.field_name}
+                {"id": c.id, "field_name": c.field_name, "value": c.value}
                 for c in (s.access_credentials or [])
             ]
             screens_data.append(screen_dict)
