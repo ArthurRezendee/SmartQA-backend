@@ -9,6 +9,7 @@ import os
 logger = logging.getLogger(__name__)
 
 _BROWSER_EXECUTABLE = os.getenv("BROWSER_EXECUTABLE_PATH", "/root/.cache/ms-playwright/chromium-1200/chrome-linux64/chrome")
+_BROWSERUSE_MODEL = os.getenv("BROWSERUSE_MODEL", "gpt-4.1-mini")
 _RETRY_DELAY_SECONDS = 5
 
 _CHROMIUM_ARGS = [
@@ -30,7 +31,7 @@ class ScreenExplorerService:
             target_url=analysis.get("target_url", ""),
         )
 
-        llm = ChatOpenAI(model="gpt-4o")
+        llm = ChatOpenAI(model=_BROWSERUSE_MODEL)
 
         required = {
             "tests_description",
@@ -74,6 +75,10 @@ class ScreenExplorerService:
                     task=task,
                     browser=browser,
                     llm=llm,
+                    vision_detail_level="low",
+                    max_history_items=12,
+                    llm_screenshot_size=(1280, 800),
+                    use_thinking=False,
                 )
                 history = asyncio.run(agent.run())
                 result = (history.final_result() or "").strip()

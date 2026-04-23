@@ -166,10 +166,27 @@ NÃO inclua nenhum texto fora do JSON.
         Retorno obrigatório: JSON OBJECT com chave "items" (lista de casos).
         """
 
+        objective = (analysis.get("description") or "").strip()
+        objective_block = f"""
+    ==================================================
+    ESCOPO RESTRITO — LEIA ANTES DE QUALQUER COISA
+    ==================================================
+
+    O QA definiu um objetivo específico para esta análise:
+    "{objective}"
+
+    REGRA ABSOLUTA DE ESCOPO:
+    - Gere casos de teste SOMENTE para o que está descrito no objetivo acima.
+    - Se o objetivo citar uma aba, funcionalidade, fluxo ou elemento específico,
+      ignore completamente todos os outros elementos da interface.
+    - Esta restrição tem PRIORIDADE MÁXIMA sobre qualquer outra instrução deste prompt.
+    - NÃO amplie o escopo, mesmo que a interface tenha outras funcionalidades relevantes.
+""" if objective else ""
+
         return f"""
     Você é um QA Sênior altamente experiente, especializado em testes funcionais,
     regressão e prevenção de bugs críticos em sistemas web.
-
+    {objective_block}
     Você está executando uma ANÁLISE DE QA com o seguinte contexto:
 
     Nome da análise:
@@ -179,28 +196,27 @@ NÃO inclua nenhum texto fora do JSON.
     {analysis.get("target_url")}
 
     Objetivo da análise (fornecido pelo QA):
-    "{analysis.get("description")}"
+    "{objective or "Não informado — cubra toda a interface descrita abaixo."}"
 
     Contexto adicional da tela:
     "{analysis.get("screen_context")}"
-    
+
     "{documents_block}"
 
     ==================================================
     TAREFA PRINCIPAL
     ==================================================
 
-    Gerar o MAIOR NÚMERO POSSÍVEL de CASOS DE TESTE FUNCIONAIS
-    com base EXCLUSIVAMENTE na interface analisada.
+    Gerar CASOS DE TESTE FUNCIONAIS com base EXCLUSIVAMENTE na interface analisada,
+    respeitando o escopo definido no objetivo acima.
 
-    Os testes devem cobrir:
-    - Fluxos principais da tela
+    Os testes devem cobrir (dentro do escopo):
+    - Fluxos principais
     - Variações válidas e inválidas de uso
     - Estados alternativos da interface (vazio, carregando, erro, sucesso)
     - Erros comuns de usuário
     - Situações limite (edge cases)
     - Regressões prováveis
-    - Comportamentos que podem gerar bugs críticos
 
     ==================================================
     REGRAS OBRIGATÓRIAS (SEM EXCEÇÃO)
@@ -226,10 +242,8 @@ NÃO inclua nenhum texto fora do JSON.
     - Se a interface não possui um determinado elemento, NÃO crie testes para ele.
 
     REQUISITO DE QUANTIDADE:
-    - Gere o MÁXIMO de casos distintos que a interface suporta com fidelidade.
+    - Gere todos os casos relevantes DENTRO DO ESCOPO definido no objetivo.
     - NÃO force testes inexistentes apenas para atingir um número.
-    - Para interfaces ricas: gere 30-50+ casos cobrindo todos os elementos e fluxos.
-    - Para interfaces simples: gere somente os casos realmente aplicáveis (pode ser 10-20).
     - Priorize qualidade e precisão sobre quantidade.
 
     Quando aplicável, cubra:
@@ -522,12 +536,28 @@ REGRAS IMPORTANTES:
         if not target_url:
             raise ValueError("analysis.target_url é obrigatório para gerar script Playwright")
 
+        objective_block_pw = f"""
+    ==================================================
+    ESCOPO RESTRITO — LEIA ANTES DE QUALQUER COISA
+    ==================================================
+
+    O QA definiu um objetivo específico para esta análise:
+    "{description}"
+
+    REGRA ABSOLUTA DE ESCOPO:
+    - Automatize SOMENTE o que está descrito no objetivo acima.
+    - Se o objetivo citar uma aba, funcionalidade, fluxo ou elemento específico,
+      ignore completamente todos os outros elementos da interface.
+    - Esta restrição tem PRIORIDADE MÁXIMA sobre qualquer outra instrução deste prompt.
+    - NÃO amplie o escopo, mesmo que a interface tenha outras funcionalidades.
+""" if description else ""
+
         prompt = f"""
     Você é um Engenheiro de QA Automation Sênior especialista em Playwright.
 
     Você deve gerar um script Playwright COMPLETO e EXECUTÁVEL para automatizar testes E2E
     da tela descrita abaixo, seguindo fielmente o contexto fornecido.
-
+    {objective_block_pw}
     ==================================================
     DADOS DA ANÁLISE
     ==================================================
@@ -540,7 +570,7 @@ REGRAS IMPORTANTES:
     {credentials_block}
 
     Objetivo definido pelo QA:
-    "{description or "Não informado."}"
+    "{description or "Não informado — cubra os fluxos principais da interface."}"
 
     Contexto da tela:
     "{screen_context or "Não informado."}"
@@ -586,12 +616,12 @@ REGRAS IMPORTANTES:
     Gerar um arquivo de teste Playwright que:
 
     1) Acesse a URL {target_url}
-    2) Execute os fluxos principais da tela
-    3) Valide listagem, filtros e paginação (quando existirem)
-    4) Valide criação e edição/atualização (quando existirem)
-    5) Cubra validações de campos obrigatórios e entradas inválidas
+    2) Execute SOMENTE os fluxos cobertos pelo objetivo do QA acima
+    3) Valide listagem, filtros e paginação APENAS se estiverem no escopo do objetivo
+    4) Valide criação e edição/atualização APENAS se estiverem no escopo do objetivo
+    5) Cubra validações de campos obrigatórios e entradas inválidas dentro do escopo
     6) Gere asserts realistas e estáveis
-    7) NÃO teste funcionalidades proibidas pelo QA (se houver)
+    7) NÃO teste funcionalidades fora do escopo definido pelo QA
 
     ==================================================
     REGRAS IMPORTANTES (OBRIGATÓRIO)
