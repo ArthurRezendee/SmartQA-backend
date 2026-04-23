@@ -11,6 +11,17 @@ logger = logging.getLogger(__name__)
 _BROWSER_EXECUTABLE = os.getenv("BROWSER_EXECUTABLE_PATH", "/root/.cache/ms-playwright/chromium-1200/chrome-linux64/chrome")
 _RETRY_DELAY_SECONDS = 5
 
+_CHROMIUM_ARGS = [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-setuid-sandbox",
+    "--disable-blink-features=AutomationControlled",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-default-apps",
+]
+
 
 class ScreenExplorerService:
     def generate_screen_descriptions(self, *, analysis: dict) -> dict:
@@ -54,6 +65,9 @@ class ScreenExplorerService:
             browser = Browser(
                 headless=True,
                 executable_path=_BROWSER_EXECUTABLE,
+                args=_CHROMIUM_ARGS,
+                minimum_wait_page_load_time=2.0,
+                wait_for_network_idle_page_load_time=3.0,
             )
             try:
                 agent = Agent(
