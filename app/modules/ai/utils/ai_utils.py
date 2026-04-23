@@ -16,7 +16,7 @@ class AiUtils:
     """
 
     @staticmethod
-    def build_credentials_block(access_credentials: list[dict]) -> str:
+    def build_credentials_block(access_credentials: list[dict], target_url: str = "") -> str:
         """
         Gera o bloco de instruções de autenticação para o agente BrowserUse.
         """
@@ -34,6 +34,12 @@ class AiUtils:
             if field and value:
                 block += f'- Preencha o campo "{field}" com o valor "{value}".\n'
 
+        if target_url:
+            block += (
+                f'\nApós o login, se for redirecionado para outra página, '
+                f'navegue para a URL alvo: {target_url}\n'
+            )
+
         return block
 
     @staticmethod
@@ -48,7 +54,7 @@ class AiUtils:
         """
 
         return f"""
-Acesse a URL abaixo:
+Acesse a URL alvo:
 {analysis["target_url"]}
 
 {credentials_block}
@@ -87,7 +93,7 @@ em formato JSON, usadas por outros agentes do sistema.
 REGRAS DE EXPLORAÇÃO
 ==================================================
 
-- NÃO saia da tela atual (não navegue para outras URLs)
+- Após acessar (e realizar login se necessário), permaneça na URL alvo e NÃO navegue para outras URLs
 - Role a página INTEIRA antes de descrever qualquer coisa
 - Interaja com TODOS os elementos interativos relevantes: abas, accordions, carrosséis, filtros, modais
 - Registre o TEXTO EXATO de títulos, botões, labels e placeholders — nunca parafaseie
@@ -490,10 +496,6 @@ REGRAS IMPORTANTES:
         Retorna: string prompt
         """
         
-        credentials_block = AiUtils.build_credentials_block(
-            analysis.get("access_credentials") or []
-        )
-
         # Helpers pra evitar "None" no prompt
         def s(value: Optional[Any], fallback: str = "") -> str:
             if value is None:
@@ -504,6 +506,11 @@ REGRAS IMPORTANTES:
         analysis_id = s(analysis.get("id"), "N/A")
         name = s(analysis.get("name"), "Sem nome")
         target_url = s(analysis.get("target_url"), "")
+
+        credentials_block = AiUtils.build_credentials_block(
+            analysis.get("access_credentials") or [],
+            target_url=target_url,
+        )
         description = s(analysis.get("description"), "")
         screen_context = s(analysis.get("screen_context"), "")
         playwright_description = s(analysis.get("playwright_description"), "")
@@ -528,6 +535,9 @@ REGRAS IMPORTANTES:
     analysis_id: {analysis_id}
     name: {name}
     target_url: {target_url}
+
+    Credenciais de acesso:
+    {credentials_block}
 
     Objetivo definido pelo QA:
     "{description or "Não informado."}"

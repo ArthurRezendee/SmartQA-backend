@@ -15,7 +15,8 @@ _RETRY_DELAY_SECONDS = 5
 class ScreenExplorerService:
     def generate_screen_descriptions(self, *, analysis: dict) -> dict:
         credentials_block = AiUtils.build_credentials_block(
-            analysis.get("access_credentials") or []
+            analysis.get("access_credentials") or [],
+            target_url=analysis.get("target_url", ""),
         )
 
         llm = ChatOpenAI(model="gpt-4o")
