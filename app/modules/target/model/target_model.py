@@ -72,3 +72,9 @@ class Target(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+    stress_tests = relationship(
+        "StressTest",
+        back_populates="target",
+        cascade="all, delete-orphan",
+    )

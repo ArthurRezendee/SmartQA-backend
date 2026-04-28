@@ -32,6 +32,7 @@ class BillingAccount(Base):
 
     # ---- Controle de uso ----
     analyses_used_current_cycle = Column(Integer, default=0)
+    stress_tests_used_current_cycle = Column(Integer, default=0)
     extra_credits = Column(Integer, default=0)
 
     # ---- Stripe ----

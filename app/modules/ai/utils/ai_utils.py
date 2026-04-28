@@ -525,6 +525,173 @@ REGRAS IMPORTANTES:
         raise ValueError(f"Não foi possível parsear JSON do BrowserUse. raw={raw[:500]}")
 
 
+    @staticmethod
+    def build_stress_test_prompt(*, analysis: dict, credentials_block: str) -> str:
+        target_url = analysis.get("target_url", "")
+        description = (analysis.get("description") or "").strip()
+        screen_context = (analysis.get("screen_context") or "").strip()
+        target_name = (analysis.get("name") or "").strip()
+        tests_description = (analysis.get("tests_description") or "").strip()
+
+        scope_block = f"""
+==================================================
+ESCOPO DO STRESS TEST
+==================================================
+Alvo: {target_name}
+URL: {target_url}
+Objetivo definido pelo QA: "{description or 'Cobrir toda a interface'}"
+Contexto adicional: "{screen_context or 'Não informado'}"
+""".strip()
+
+        knowledge_block = f"""
+==================================================
+CONHECIMENTO PRÉVIO DA INTERFACE
+==================================================
+Use como referência para identificar elementos, mas NÃO deixe isso limitar os ataques.
+{tests_description}
+""".strip() if tests_description else ""
+
+        return f"""
+MISSÃO: STRESS TEST BRUTO — QUEBRE ESTA TELA.
+
+Você é um QA Sênior especialista em stress testing, segurança web e caça de bugs.
+Sua missão é DESTRUIR sistematicamente esta interface. Não tenha misericórdia.
+Teste CADA elemento. Tente CADA input possível. Documente TUDO que quebrar.
+
+{scope_block}
+
+{credentials_block}
+
+{knowledge_block}
+
+==================================================
+PROTOCOLO OBRIGATÓRIO DE DESTRUIÇÃO SISTEMÁTICA
+==================================================
+
+FASE 1 — LOGIN E RECONHECIMENTO
+- Realize o login com as credenciais fornecidas (se houver)
+- Mapeie TODOS os elementos: inputs, botões, formulários, dropdowns, tabs, modais, tabelas, links
+- Anote o estado inicial da página antes de atacar
+
+FASE 2 — ATAQUE SISTEMÁTICO A INPUTS
+Para CADA campo de texto/input/textarea encontrado, execute os ataques abaixo (um por vez, observando o resultado de cada um):
+
+1. Envio vazio — clique no submit sem preencher o campo
+2. Apenas espaços em branco: "   "
+3. String gigante: "A" repetido 5000 vezes
+4. XSS básico: <script>alert('XSS')</script>
+5. XSS alternativo: <img src=x onerror=alert(1)>
+6. SQL Injection: ' OR '1'='1'; DROP TABLE users;--
+7. Caracteres especiais: !@#$%^&*()_+-=[]{{}}|;':",.<>?/~`\\
+8. Emojis e unicode: 🔥💀👾💥 αβγδ 中文 العربية Ñoño
+9. Número negativo: -999999
+10. Zero: 0
+11. Float enorme: 99999999.9999999
+12. Data inválida: 99/99/9999
+13. E-mail inválido: nao@@email..com
+14. Booleano como texto: true / false / null / undefined
+15. Só ponto: .....
+16. Quebra de linha como input: use o caractere de nova linha
+
+FASE 3 — ATAQUE A BOTÕES E AÇÕES
+Para CADA botão encontrado:
+- Clique sem preencher os campos obrigatórios vinculados
+- Clique múltiplas vezes consecutivas rapidamente
+- Busque e execute botões de delete/remover/cancelar em itens existentes
+- Teste botões de confirmação (sim/não, confirmar/cancelar) em estados inesperados
+
+FASE 4 — ATAQUE A FLUXOS E ESTADO
+- Preencha formulário pela metade, use o botão voltar do browser, volte à página e tente submeter
+- Submeta o mesmo formulário duas vezes seguidas (duplo envio)
+- Altere parâmetros de ID na URL (ex: troque /item/1 por /item/999999, /item/-1, /item/abc)
+- Tente acessar rotas de admin ou áreas restritas diretamente na URL
+- Abra links em estado não logado adicionando ?auth=bypass na URL
+
+FASE 5 — DETECÇÃO ATIVA DE ERROS
+Em CADA interação, observe e documente qualquer um destes sinais de bug:
+- Mensagens de erro genéricas expostas: "500", "Internal Server Error", "Undefined", stack trace visível
+- Campo que aceita valor claramente inválido sem nenhuma mensagem de erro
+- Campo que rejeita valor válido com mensagem de erro incorreta
+- Spinner/loading que não termina (aguarde 8 segundos)
+- Modal que não fecha ou fica travado
+- Layout quebrado após uma ação (elementos sobrepostos, texto cortado, seção desaparece)
+- Debug info, IDs internos, caminhos de arquivo ou stack traces expostos ao usuário
+- Ação que executa silenciosamente sem nenhum feedback (sucesso ou erro)
+- Botão que não responde ao clique
+- Redirecionamento inesperado para página errada ou em branco
+- Dados que somem após salvar (salva mas não mostra, ou volta ao valor anterior)
+- Comportamento inconsistente: funciona uma vez, não funciona na segunda
+
+==================================================
+REGRAS CRÍTICAS
+==================================================
+1. DOCUMENTE APENAS O QUE REALMENTE OBSERVAR — nunca invente bugs
+2. Se o sistema se comportou CORRETAMENTE com o input inválido, NÃO documente como bug
+3. Seja ESPECÍFICO: "Campo 'Email' aceitou string de 5000 chars sem truncar ou mostrar erro" é melhor que "campo tem bug"
+4. Cubra 100% dos elementos interativos visíveis na tela
+5. Tire screenshot IMEDIATAMENTE ao detectar qualquer anomalia
+6. Não pare até ter testado TODOS os elementos mapeados na Fase 1
+
+==================================================
+FORMATO DE SAÍDA OBRIGATÓRIO
+==================================================
+
+Retorne APENAS JSON válido. Nenhum texto fora do JSON.
+
+{{
+  "summary": "Resumo executivo em 3-4 frases: quantos bugs foram encontrados, quais as categorias mais críticas e qual o impacto geral na aplicação.",
+  "total_findings": N,
+  "findings": [
+    {{
+      "order": 1,
+      "title": "Título conciso e objetivo do bug",
+      "description": "Descrição precisa do que aconteceu e qual o impacto",
+      "severity": "critical",
+      "category": "security",
+      "element": "Nome ou descrição exata do elemento testado (ex: Campo 'E-mail' no formulário de login)",
+      "input_used": "Valor exato inserido ou ação exata realizada",
+      "steps_to_reproduce": [
+        "Passo 1: Acesse a URL X",
+        "Passo 2: Insira no campo 'Y' o valor 'Z'",
+        "Passo 3: Clique no botão 'Salvar'",
+        "Passo 4: Observe que [comportamento observado]"
+      ],
+      "error_details": "Mensagem de erro exata que apareceu na tela, ou 'Nenhuma mensagem de erro foi exibida' se foi silencioso",
+      "screenshot_index": 5
+    }}
+  ]
+}}
+
+GUIA DE SEVERITY:
+- critical: sistema crasha, dados corrompidos, XSS executado, SQL exposto, rotas não protegidas acessíveis, tela branca/500
+- high: funcionalidade core quebrada, campo aceita dado completamente inválido sem erro, perda de dados confirmada
+- medium: mensagem de erro incorreta, comportamento inesperado mas recuperável, feedback ausente em ação importante
+- low: visual levemente quebrado, texto errado ou confuso, edge case muito improvável
+
+GUIA DE CATEGORY:
+- crash: sistema parou de funcionar, erro 500, tela branca, exceção não tratada
+- security: XSS executado, SQL injection aceito, exposição de dados internos, rota restrita acessível sem autenticação
+- validation: campo aceita valor inválido quando deveria rejeitar, ou rejeita valor válido incorretamente
+- ui_error: layout quebrado, modal travado, loading infinito, elementos sobrepostos, componente não renderiza
+- http_error: erros 4xx/5xx expostos ao usuário de forma não tratada
+- functional: funcionalidade não funciona como esperado (ação não executa, dado não salva, fluxo não completa)
+- ux: feedback ausente, ação silenciosa, mensagem confusa, estado inconsistente que não bloqueia mas confunde
+
+Se não encontrar NENHUM bug real, retorne:
+{{
+  "summary": "Nenhum bug encontrado. A interface se comportou corretamente em todos os cenários de stress test executados.",
+  "total_findings": 0,
+  "findings": []
+}}
+
+PROIBIDO:
+- NÃO use write_file ou escreva arquivos
+- NÃO retorne texto fora do JSON
+- NÃO invente bugs que não ocorreram
+- NÃO documente comportamentos corretos como bugs
+- NÃO repita o JSON
+""".strip()
+
     def build_playwright_script_prompt(analysis: Dict[str, Any]) -> str:
         """
         Monta um prompt robusto para um agente gerar scripts Playwright

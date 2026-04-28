@@ -20,6 +20,7 @@ class Plan(Base):
     # LIMITES (regra de negócio)
     # ----------------------
     analyses_per_month = Column(Integer, nullable=False)
+    stress_tests_per_month = Column(Integer, nullable=False, default=0)
     max_users = Column(Integer, default=1)
 
     # ----------------------

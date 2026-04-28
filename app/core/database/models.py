@@ -29,3 +29,7 @@ import app.modules.organization.model.organization_invitation_model
 
 # Notifications
 import app.modules.notification.model.notification_model
+
+# Stress Test
+import app.modules.stress_test.model.stress_test_model
+import app.modules.stress_test.model.stress_test_finding_model
