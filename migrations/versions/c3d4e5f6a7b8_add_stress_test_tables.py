@@ -15,6 +15,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 
 revision: str = 'c3d4e5f6a7b8'
 down_revision: Union[str, None] = 'b1c2d3e4f5a6'
@@ -35,17 +36,29 @@ def upgrade() -> None:
         sa.Column('stress_tests_used_current_cycle', sa.Integer(), nullable=False, server_default='0'),
     )
 
-    # 3. Cria enums
-    stress_severity_enum = sa.Enum(
+    # 3. Cria enums (create_type=False evita que op.create_table tente recriar)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE stress_severity_enum AS ENUM ('critical', 'high', 'medium', 'low');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE stress_category_enum AS ENUM ('crash', 'validation', 'ui_error', 'http_error', 'security', 'functional', 'ux');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+    stress_severity_enum = PgEnum(
         'critical', 'high', 'medium', 'low',
         name='stress_severity_enum',
+        create_type=False,
     )
-    stress_category_enum = sa.Enum(
+    stress_category_enum = PgEnum(
         'crash', 'validation', 'ui_error', 'http_error', 'security', 'functional', 'ux',
         name='stress_category_enum',
+        create_type=False,
     )
-    stress_severity_enum.create(op.get_bind(), checkfirst=True)
-    stress_category_enum.create(op.get_bind(), checkfirst=True)
 
     # 4. Cria tabela stress_tests
     op.create_table(

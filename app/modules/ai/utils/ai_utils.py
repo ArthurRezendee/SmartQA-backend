@@ -568,13 +568,51 @@ Teste CADA elemento. Tente CADA input possível. Documente TUDO que quebrar.
 PROTOCOLO OBRIGATÓRIO DE DESTRUIÇÃO SISTEMÁTICA
 ==================================================
 
-FASE 1 — LOGIN E RECONHECIMENTO
-- Realize o login com as credenciais fornecidas (se houver)
-- Mapeie TODOS os elementos: inputs, botões, formulários, dropdowns, tabs, modais, tabelas, links
-- Anote o estado inicial da página antes de atacar
+FASE 0 — CARREGAMENTO DA PÁGINA
+Esta é uma SPA que pode demorar para renderizar. Siga exatamente:
+1. Navegue para a URL e IMEDIATAMENTE execute wait de 20 segundos.
+2. Verifique se há conteúdo. Se sim: prossiga. Se ainda vazio: navegue para a URL novamente e execute wait de 20 segundos.
+3. Se ainda vazio após a segunda tentativa: navegue para a URL uma terceira vez e execute wait de 20 segundos.
+4. Se após as 3 tentativas (cada uma com navigate + wait 20s na MESMA URL) ainda não carregar: registre finding (severity: critical, category: crash) com título "Página não carrega após 60 segundos" e encerre o teste.
+NUNCA tente paths alternativos (/login, /auth, etc) — use sempre exatamente a URL fornecida.
+Se aparecer spinner ou loading animado: aguarde ele sumir antes de agir — isso é SPA carregando normalmente.
+
+REGRA DE TELA-ALVO — LEIA ANTES DE QUALQUER FASE:
+A tela que você deve atacar é SEMPRE a URL fornecida no escopo. Nunca desvie para testar outras telas do sistema.
+
+Se credenciais foram fornecidas, o único propósito delas é:
+  a) confirmar que o login válido funciona (registre como finding se falhar)
+  b) acessar a tela-alvo caso ela exija autenticação prévia
+
+Após qualquer ação bem-sucedida (login, submit, redirecionamento), VOLTE para a URL da tela-alvo e continue os ataques lá. Não siga para as telas internas do sistema.
+
+Exemplo: se a URL-alvo é uma tela de login, faça o login com credenciais válidas para confirmar o happy path, depois navegue DE VOLTA para a URL de login e execute todos os ataques no formulário de login. Os ataques são na tela de login, não na tela que aparece depois.
+
+REGRA DE CONTINUIDADE — NUNCA PARE:
+Você deve encontrar TODOS os bugs, não apenas o primeiro. Independente do resultado de cada teste individual:
+- Se um ataque não produz resposta visível: documente se for o caso e PROSSIGA para o próximo ataque
+- Se uma ação travar a tela: aguarde, recarregue se necessário, e CONTINUE os próximos testes
+- Se o login falhar: registre como finding e CONTINUE testando os demais ataques no formulário
+- Nunca encerre o teste antes de ter executado todos os ataques em todos os elementos mapeados
+- Entregue TODOS os findings acumulados no JSON final
+
+FASE 1 — RECONHECIMENTO E INVENTÁRIO OBRIGATÓRIO
+- Navegue para a URL-alvo
+- Se necessário, use as credenciais fornecidas para acessar a tela (e volte para ela após o login)
+- Mapeie e LISTE EXPLICITAMENTE todos os elementos interativos encontrados:
+  * CAMPOS: liste cada campo de texto/input/textarea pelo nome/label exato (ex: "Campo Login", "Campo Senha", "Campo E-mail")
+  * BOTÕES: liste cada botão pelo texto exato (ex: "Botão Entrar", "Botão Cancelar")
+  * OUTROS: dropdowns, checkboxes, links, tabs — liste pelo label/texto exato
+
+ATENÇÃO: Esta lista é o seu CONTRATO. Você deve atacar CADA elemento desta lista antes de encerrar.
+Você NÃO pode pular nenhum elemento. Você NÃO pode encerrar antes de atacar todos.
 
 FASE 2 — ATAQUE SISTEMÁTICO A INPUTS
-Para CADA campo de texto/input/textarea encontrado, execute os ataques abaixo (um por vez, observando o resultado de cada um):
+LOOP OBRIGATÓRIO: Para cada campo de texto/input/textarea da lista da Fase 1, execute TODOS os 16 ataques abaixo.
+Finalize os 16 ataques no Campo 1 antes de começar o Campo 2. Finalize os 16 no Campo 2 antes de começar o Campo 3. E assim por diante.
+Após completar os 16 ataques em um campo, recarregue a página (ou navegue novamente para a URL-alvo) para resetar o estado antes do próximo campo.
+
+NUNCA avance para a Fase 3 sem ter executado TODOS os 16 ataques em TODOS os campos da lista.
 
 1. Envio vazio — clique no submit sem preencher o campo
 2. Apenas espaços em branco: "   "
@@ -593,12 +631,16 @@ Para CADA campo de texto/input/textarea encontrado, execute os ataques abaixo (u
 15. Só ponto: .....
 16. Quebra de linha como input: use o caractere de nova linha
 
+CONFIRMAÇÃO FASE 2: Você só pode avançar para a Fase 3 após confirmar internamente que executou os 16 ataques em CADA campo da lista.
+
 FASE 3 — ATAQUE A BOTÕES E AÇÕES
-Para CADA botão encontrado:
+LOOP OBRIGATÓRIO: Para CADA botão da lista da Fase 1, execute TODOS os testes abaixo:
 - Clique sem preencher os campos obrigatórios vinculados
 - Clique múltiplas vezes consecutivas rapidamente
 - Busque e execute botões de delete/remover/cancelar em itens existentes
 - Teste botões de confirmação (sim/não, confirmar/cancelar) em estados inesperados
+
+NUNCA avance para a Fase 4 sem ter testado TODOS os botões da lista.
 
 FASE 4 — ATAQUE A FLUXOS E ESTADO
 - Preencha formulário pela metade, use o botão voltar do browser, volte à página e tente submeter
@@ -621,6 +663,22 @@ Em CADA interação, observe e documente qualquer um destes sinais de bug:
 - Redirecionamento inesperado para página errada ou em branco
 - Dados que somem após salvar (salva mas não mostra, ou volta ao valor anterior)
 - Comportamento inconsistente: funciona uma vez, não funciona na segunda
+
+==================================================
+VERIFICAÇÃO FINAL OBRIGATÓRIA (ANTES DE GERAR O JSON)
+==================================================
+
+Antes de retornar o JSON, confirme cada item da lista abaixo.
+Se algum item não foi completado, execute-o AGORA antes de gerar o JSON.
+
+Para CADA campo de texto/input listado na Fase 1:
+[ ] Executei os 16 ataques (ataques 1 a 16)
+
+Para CADA botão listado na Fase 1:
+[ ] Testei clique sem campos preenchidos
+[ ] Testei cliques múltiplos consecutivos
+
+Somente gere o JSON após confirmar que TODOS os elementos foram atacados.
 
 ==================================================
 REGRAS CRÍTICAS

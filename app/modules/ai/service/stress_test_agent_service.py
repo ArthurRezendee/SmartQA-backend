@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 _BROWSER_EXECUTABLE = os.getenv("BROWSER_EXECUTABLE_PATH", "/root/.cache/ms-playwright/chromium-1200/chrome-linux64/chrome")
 _STRESS_TEST_MODEL = os.getenv("STRESS_TEST_MODEL", "gpt-4.1")
-_RETRY_DELAY_SECONDS = 10
+_RETRY_DELAY_SECONDS = 5
+_MAX_ATTEMPTS = 3
 
 _CHROMIUM_ARGS = [
     "--no-sandbox",
@@ -56,8 +57,8 @@ class StressTestAgentService:
                     task=task,
                     browser=browser,
                     llm=llm,
-                    vision_detail_level="high",
-                    max_history_items=80,
+                    vision_detail_level="low",
+                    max_history_items=12,
                     llm_screenshot_size=(1280, 800),
                     use_thinking=False,
                 )
@@ -77,7 +78,7 @@ class StressTestAgentService:
             return result, saved_paths
 
         last_error = None
-        for attempt in range(1, 3):
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
                 result, saved_paths = _run_agent()
 
@@ -85,6 +86,9 @@ class StressTestAgentService:
                     data = AiUtils.parse_browseruse_json(result)
                 except Exception as e:
                     raise ValueError(f"JSON inválido retornado pelo stress test agent: {e} | result={result[:500]}")
+
+                if _page_never_loaded(data):
+                    raise ValueError("Página não carregou — nenhum elemento foi testado. Retentando com nova sessão de browser.")
 
                 findings = data.get("findings") or []
                 for finding in findings:
@@ -100,13 +104,26 @@ class StressTestAgentService:
             except Exception as e:
                 last_error = e
                 logger.warning(
-                    f"[StressTest] Tentativa {attempt}/2 falhou: {e}"
-                    + (f" — aguardando {_RETRY_DELAY_SECONDS}s" if attempt < 2 else "")
+                    f"[StressTest] Tentativa {attempt}/{_MAX_ATTEMPTS} falhou: {e}"
+                    + (f" — aguardando {_RETRY_DELAY_SECONDS}s" if attempt < _MAX_ATTEMPTS else "")
                 )
-                if attempt < 2:
+                if attempt < _MAX_ATTEMPTS:
                     time.sleep(_RETRY_DELAY_SECONDS)
 
-        raise ValueError(f"Stress test falhou após todas as tentativas: {last_error}")
+        raise ValueError(f"Stress test falhou após {_MAX_ATTEMPTS} tentativas: {last_error}")
+
+
+def _page_never_loaded(data: dict) -> bool:
+    """Retorna True quando o agente encerrou sem conseguir testar nada — página nunca carregou."""
+    findings = data.get("findings") or []
+    if len(findings) != 1:
+        return False
+    f = findings[0]
+    return (
+        f.get("category") == "crash"
+        and f.get("severity") == "critical"
+        and "não carrega" in (f.get("title") or "").lower()
+    )
 
 
 def _save_screenshots(history, screenshot_dir: str, stress_test_id: int) -> list:
