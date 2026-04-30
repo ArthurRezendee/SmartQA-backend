@@ -18,6 +18,9 @@ class StressTestController:
     async def delete(self, db, stress_test_id: int, user_id: int):
         return await self.service.delete(db, stress_test_id, user_id)
 
+    async def get_steps(self, db, stress_test_id: int, user_id: int) -> dict:
+        return await self.service.get_steps(db, stress_test_id, user_id)
+
     async def export_report(self, db, stress_test_id: int, user_id: int) -> bytes:
         from app.modules.export.service.pdf_service import PDFService
         st = await self.service.get_or_fail(db, stress_test_id, user_id)

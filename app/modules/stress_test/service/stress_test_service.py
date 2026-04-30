@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -6,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.modules.stress_test.model.stress_test_model import StressTest
 from app.modules.stress_test.model.stress_test_finding_model import StressTestFinding
+from app.modules.stress_test.model.stress_test_step_model import StressTestStep
 from app.modules.target.model.target_model import Target
 from app.modules.billing.model.billing_account_model import BillingAccount
 
@@ -112,6 +114,65 @@ class StressTestService:
         )
         tests = result.scalars().unique().all()
         return [self._serialize(t) for t in tests]
+
+    async def get_steps(self, db: AsyncSession, stress_test_id: int, user_id: int) -> dict:
+        # Confirma acesso ao stress test
+        result = await db.execute(
+            select(StressTest).where(
+                StressTest.id == stress_test_id,
+                StressTest.user_id == user_id,
+                StressTest.deleted_at.is_(None),
+            )
+        )
+        st = result.scalar_one_or_none()
+        if not st:
+            raise ValueError("Stress test não encontrado")
+
+        steps_result = await db.execute(
+            select(StressTestStep)
+            .where(StressTestStep.stress_test_id == stress_test_id)
+            .order_by(StressTestStep.worker_id, StressTestStep.id)
+        )
+        steps = steps_result.scalars().all()
+
+        # Agrupa por elemento para facilitar a visualização de cobertura
+        groups: dict[str, dict] = {}
+        for s in steps:
+            key = f"{s.worker_id}::{s.element_label}"
+            if key not in groups:
+                groups[key] = {
+                    "element_label": s.element_label,
+                    "element_kind":  s.element_kind,
+                    "field_type":    s.field_type,
+                    "worker_id":     s.worker_id,
+                    "attacks": [],
+                    "total": 0,
+                    "bugs": 0,
+                    "skipped": 0,
+                }
+            groups[key]["attacks"].append({
+                "id":                s.id,
+                "attack_key":        s.attack_key,
+                "attack_description": s.attack_description,
+                "result":            s.result,
+                "finding_id":        s.finding_id,
+            })
+            groups[key]["total"] += 1
+            if s.result == "bug":
+                groups[key]["bugs"] += 1
+            elif s.result == "skipped":
+                groups[key]["skipped"] += 1
+
+        elements = list(groups.values())
+        total_steps = len(steps)
+        total_bugs  = sum(1 for s in steps if s.result == "bug")
+
+        return {
+            "stress_test_id": stress_test_id,
+            "total_steps":    total_steps,
+            "total_bugs":     total_bugs,
+            "elements":       elements,
+        }
 
     async def delete(self, db: AsyncSession, stress_test_id: int, user_id: int):
         result = await db.execute(

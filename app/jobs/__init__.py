@@ -6,5 +6,7 @@ import app.jobs.ia.generate_test_case
 import app.jobs.ia.generate_scripts_playwright
 import app.jobs.ia.generate_documentation
 import app.jobs.ia.run_stress_test
+import app.jobs.ia.run_stress_test_worker
+import app.jobs.ia.run_stress_test_aggregate
 
 import app.jobs.organization.send_invitation_email

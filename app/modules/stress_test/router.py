@@ -59,6 +59,18 @@ async def get_stress_test(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/{stress_test_id}/steps")
+async def get_stress_test_steps(
+    stress_test_id: int,
+    user_id: int = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    try:
+        return await controller.get_steps(db, stress_test_id, user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/{stress_test_id}/export")
 async def export_stress_test_report(
     stress_test_id: int,

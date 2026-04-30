@@ -38,3 +38,8 @@ class StressTestFinding(Base):
     screenshot_path = Column(String(500), nullable=True)
 
     stress_test = relationship("StressTest", back_populates="findings")
+    steps = relationship(
+        "StressTestStep",
+        back_populates="finding",
+        cascade="all, delete-orphan",
+    )

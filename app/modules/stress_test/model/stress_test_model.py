@@ -23,6 +23,9 @@ class StressTest(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
 
+    element_map = Column(Text, nullable=True)
+    worker_batches = Column(Text, nullable=True)
+
     deleted_at = Column(DateTime, nullable=True, default=None)
 
     target = relationship("Target", back_populates="stress_tests")

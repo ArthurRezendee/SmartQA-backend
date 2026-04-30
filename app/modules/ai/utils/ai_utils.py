@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 from pathlib import Path
 import json
 import re
@@ -6,6 +7,83 @@ import ast
 from typing import Any, Dict, Optional
 from docling.document_converter import DocumentConverter
 import textwrap
+
+
+# ---------------------------------------------------------------------------
+# Attack profiles — type → list of attack keys
+# ---------------------------------------------------------------------------
+
+ATTACK_PROFILES: dict[str, list[str]] = {
+    "password":  ["empty", "whitespace", "giant_string", "xss_basic", "xss_alt", "sqli", "special_chars", "unicode", "null_byte"],
+    "email":     ["empty", "invalid_email", "xss_domain", "sqli", "unicode", "giant_string"],
+    "date":      ["empty", "whitespace", "invalid_date", "year_overflow", "wrong_format"],
+    "number":    ["empty", "negative", "zero", "overflow", "text_in_number", "sqli", "comma_vs_dot"],
+    "cpf_cnpj": ["empty", "invalid_format", "test_cpf", "text_in_cpf", "sqli"],
+    "search":    ["sqli_wildcard", "xss_basic", "giant_string", "unicode", "empty"],
+    "textarea":  ["empty", "whitespace", "xss_basic", "xss_alt", "sqli", "giant_string", "newline", "unicode"],
+    "select":    ["empty_option", "default_selection"],
+    "cep_phone": ["empty", "invalid_format", "text_in_number", "sqli"],
+    "generic":   ["empty", "whitespace", "giant_string", "xss_basic", "sqli", "special_chars", "unicode"],
+}
+
+ATTACK_DESCRIPTIONS: dict[str, str] = {
+    "empty":           "Envio vazio — não preencha o campo e clique em submit",
+    "whitespace":      'Apenas espaços em branco: "   " (3 espaços)',
+    "giant_string":    "A letra A repetida 5000 vezes",
+    "xss_basic":       "<script>alert('XSS')</script>",
+    "xss_alt":         "<img src=x onerror=alert(1)>",
+    "sqli":            "' OR '1'='1'; DROP TABLE users;--",
+    "special_chars":   "!@#$%^&*()_+-=[]{}|;':\",./<>?~`\\",
+    "unicode":         "🔥💀👾💥 αβγδ 中文 العربية Ñoño",
+    "null_byte":       "\\x00 (null byte — caractere de byte nulo)",
+    "invalid_email":   "nao@@email..com",
+    "xss_domain":      "user@<script>alert(1)</script>.com",
+    "invalid_date":    "99/99/9999",
+    "year_overflow":   "0000-00-00 (e também tente 9999-12-31)",
+    "wrong_format":    "31-01-2025 (dia-mês-ano invertido)",
+    "negative":        "-999999",
+    "zero":            "0",
+    "overflow":        "99999999.9999999",
+    "text_in_number":  "abc (texto em campo numérico)",
+    "comma_vs_dot":    "1.234,56 (vírgula como separador decimal)",
+    "invalid_format":  "Texto completamente inválido para o tipo do campo",
+    "test_cpf":        "111.111.111-11 (CPF de teste conhecido)",
+    "text_in_cpf":     "abc.def.ghi-jk",
+    "sqli_wildcard":   "%' OR '1'='1",
+    "newline":         "Caractere de nova linha literal (pressione Enter dentro do campo sem submeter, depois submeta)",
+    "empty_option":    "Selecionar a opção placeholder/vazia do dropdown (se existir) e submeter",
+    "default_selection": "Manter a seleção padrão sem alterar e submeter o formulário",
+}
+
+
+def _try_recover_truncated_json(raw: str) -> dict | None:
+    """
+    When BrowserUse truncates a long JSON output mid-stream, try to recover by
+    finding the last cleanly-closed inner object and appending missing brackets.
+
+    Strategy: walk backwards through the raw string looking for a `}` that leaves
+    the surrounding structure open, then close the remaining brackets and parse.
+    """
+    if not raw.startswith("{"):
+        return None
+
+    # Find all positions of `}` in the string (right-to-left) and try each one
+    # as a truncation point, closing whatever is still open.
+    last_brace_positions = [i for i, c in enumerate(raw) if c == "}"]
+    for pos in reversed(last_brace_positions):
+        candidate = raw[: pos + 1]
+        opens = candidate.count("{") - candidate.count("}")
+        arr_opens = candidate.count("[") - candidate.count("]")
+        if opens < 0 or arr_opens < 0:
+            continue
+        closed = candidate + ("]" * arr_opens) + ("}" * opens)
+        try:
+            data = json.loads(closed)
+            if isinstance(data, dict) and ("findings" in data or "attacks_log" in data):
+                return data
+        except json.JSONDecodeError:
+            pass
+    return None
 
 
 def _sanitize_json_strings(s: str) -> str:
@@ -522,8 +600,425 @@ REGRAS IMPORTANTES:
         except Exception:
             pass
 
+        # 5) partial JSON recovery — BrowserUse sometimes truncates long outputs mid-attacks_log.
+        # Try to salvage findings by closing any unclosed brackets/braces.
+        recovered = _try_recover_truncated_json(raw)
+        if recovered is not None:
+            return recovered
+
         raise ValueError(f"Não foi possível parsear JSON do BrowserUse. raw={raw[:500]}")
 
+
+    # ------------------------------------------------------------------
+    # Stress Test v2 — classification + batch helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def classify_field_type(element: dict) -> str:
+        label       = (element.get("label")        or "").lower()
+        html_type   = (element.get("html_type")    or "").lower()
+        html_name   = (element.get("html_name")    or "").lower()
+        element_kind = (element.get("element_kind") or "").lower()
+        combined = f"{label} {html_type} {html_name}"
+
+        if html_type == "password" or any(x in combined for x in ["senha", "password", "pass", "pwd", "secret"]):
+            return "password"
+        if html_type == "email" or any(x in combined for x in ["email", "e-mail", "mail"]):
+            return "email"
+        if any(x in combined for x in ["cpf", "cnpj", "documento", "document", "rg"]):
+            return "cpf_cnpj"
+        if any(x in combined for x in ["busca", "pesquisa", "search", "filtro", "filter", "query", "procurar"]):
+            return "search"
+        if element_kind == "textarea" or html_type == "textarea":
+            return "textarea"
+        if element_kind in ("select", "dropdown") or html_type == "select":
+            return "select"
+        if any(x in combined for x in ["cep", "zip", "postal", "telefone", "phone", "celular", "fone", "tel"]):
+            return "cep_phone"
+        if html_type in ("date", "datetime-local", "time", "month") or any(
+            x in combined for x in ["data", "date", "nascimento", "vencimento", "prazo",
+                                     "inicio", "início", "fim", "validade", "expir"]
+        ):
+            return "date"
+        if html_type == "number" or any(
+            x in combined for x in ["valor", "preco", "preço", "price", "quantidade",
+                                     "qtd", "numero", "número", "number", "age", "idade",
+                                     "amount", "total", "peso", "weight"]
+        ):
+            return "number"
+        return "generic"
+
+    @staticmethod
+    def create_worker_batches(element_map: dict, batch_size: int = 15) -> list[list[dict]]:
+        """
+        Divide os campos do element_map em batches coesos por contexto.
+        Classifica o field_type de cada campo e embute os ataques correspondentes.
+        """
+        fields  = element_map.get("fields")  or []
+        buttons = element_map.get("buttons") or []
+
+        for f in fields:
+            field_type = AiUtils.classify_field_type(f)
+            f["field_type"] = field_type
+            f["attacks"] = [
+                {"key": k, "description": ATTACK_DESCRIPTIONS[k]}
+                for k in ATTACK_PROFILES.get(field_type, ATTACK_PROFILES["generic"])
+            ]
+
+        ctx_fields:  dict[str, list] = defaultdict(list)
+        ctx_buttons: dict[str, list] = defaultdict(list)
+        for f in fields:
+            ctx_fields[f.get("context", "main")].append(f)
+        for b in buttons:
+            ctx_buttons[b.get("context", "main")].append(b)
+
+        all_contexts = list(dict.fromkeys(
+            [f.get("context", "main") for f in fields] +
+            [b.get("context", "main") for b in buttons]
+        ))
+
+        batches: list[list[dict]] = []
+        current: list[dict] = []
+
+        for ctx in all_contexts:
+            ctx_elements = ctx_fields[ctx] + ctx_buttons[ctx]
+            if not ctx_elements:
+                continue
+            if len(ctx_elements) > batch_size:
+                if current:
+                    batches.append(current)
+                    current = []
+                for i in range(0, len(ctx_elements), batch_size):
+                    batches.append(ctx_elements[i:i + batch_size])
+            else:
+                if current and len(current) + len(ctx_elements) > batch_size:
+                    batches.append(current)
+                    current = []
+                current.extend(ctx_elements)
+
+        if current:
+            batches.append(current)
+
+        return batches
+
+    @staticmethod
+    def calculate_max_steps(batch: list[dict]) -> int:
+        fields  = [e for e in batch if e.get("element_kind") in ("input", "textarea", "select")]
+        buttons = [e for e in batch if e.get("element_kind") == "button"]
+
+        # Each attack costs ~3 steps: fill field + click submit + observe response
+        total_attacks = sum(len(e.get("attacks") or ATTACK_PROFILES["generic"]) for e in fields)
+        field_steps = total_attacks * 3
+
+        # After finishing all attacks on a field, reload the page (~4 steps: navigate + wait + re-login + re-navigate)
+        field_reload_steps = len(fields) * 4
+
+        # Each button: 3 tests × ~4 steps each (navigate, act, observe, recover)
+        button_steps = len(buttons) * 12
+
+        # Base: initial page load + login + any context switches
+        contexts = {e.get("context", "main") for e in batch}
+        nav_buffer = 50 + (20 * len(contexts))
+
+        return max(80, field_steps + field_reload_steps + button_steps + nav_buffer)
+
+    @staticmethod
+    def build_recon_prompt(*, target_url: str, credentials_block: str, screen_context: str = "") -> str:
+        context_block = f"""
+==================================================
+CONTEXTO ADICIONAL (use apenas como referência)
+==================================================
+{screen_context}
+""".strip() if screen_context else ""
+
+        return f"""
+MISSÃO: RECONHECIMENTO DE INTERFACE — MAPEAMENTO COMPLETO
+
+Você é um agente de reconhecimento de QA. Sua ÚNICA missão é mapear todos os elementos interativos desta interface. NÃO execute nenhum teste, NÃO submeta formulários, NÃO clique em botões de ação.
+
+URL ALVO: {target_url}
+
+{credentials_block}
+
+{context_block}
+
+==================================================
+FASE 0 — CARREGAMENTO (OBRIGATÓRIO ANTES DE QUALQUER COISA)
+==================================================
+
+Esta pode ser uma SPA que demora para renderizar. Siga exatamente:
+1. Navegue para a URL e IMEDIATAMENTE aguarde 20 segundos.
+2. Verifique se há conteúdo visível. Se sim: prossiga. Se ainda vazio: navegue para a URL novamente e aguarde mais 20 segundos.
+3. Se ainda vazio: navegue uma terceira vez e aguarde mais 20 segundos.
+4. Se após as 3 tentativas a página ainda estiver em branco ou com erro: retorne imediatamente {{"fields": [], "buttons": [], "page_failed": true}} e encerre.
+
+NUNCA tente URLs alternativas (/login, /home, etc.) — use SEMPRE exatamente a URL fornecida.
+Se aparecer spinner ou loading animado: aguarde ele desaparecer antes de agir.
+
+==================================================
+FASE 1 — MAPEAMENTO
+==================================================
+
+1. Role a página do TOPO ao FUNDO para identificar todas as seções.
+2. Abra modais, expanda accordions e abas para mapear campos ocultos — mas NÃO submeta nada.
+3. Após explorar, feche modais e volte ao estado inicial.
+
+Para CADA elemento interativo encontrado, registre:
+- Label ou placeholder EXATO como aparece na tela
+- Tipo HTML: input, textarea, select, button
+- Atributo type quando visível: text, email, password, number, date, datetime-local, etc.
+- Atributo name ou id, se visível
+- Contexto: qual formulário, seção ou modal contém este elemento (crie um identificador curto, ex: "form-login", "modal-novo-usuario", "secao-filtros")
+- navigation_path: como chegar neste elemento. Exemplos:
+  * "visível na página principal"
+  * "dentro do modal 'Novo Usuário' — abrir clicando no botão 'Novo Usuário'"
+  * "dentro da aba 'Configurações' — clicar na aba 'Configurações' primeiro"
+
+NÃO MAPEAR: links de navegação de página, ícones decorativos, botões de fechar janela (X), breadcrumbs.
+
+==================================================
+FORMATO DE SAÍDA
+==================================================
+
+Retorne APENAS JSON válido com esta estrutura:
+
+{{
+  "page_failed": false,
+  "fields": [
+    {{
+      "id": "f1",
+      "label": "texto exato do label ou placeholder",
+      "html_type": "text|email|password|number|date|textarea|select|...",
+      "html_name": "valor do atributo name ou id, se visível — deixe vazio se não visível",
+      "element_kind": "input|textarea|select",
+      "context": "identificador curto da seção/form/modal",
+      "navigation_path": "como chegar neste campo"
+    }}
+  ],
+  "buttons": [
+    {{
+      "id": "b1",
+      "label": "texto exato do botão",
+      "element_kind": "button",
+      "context": "mesmo identificador do contexto dos campos relacionados",
+      "navigation_path": "como chegar neste botão"
+    }}
+  ]
+}}
+
+REGRAS:
+- NÃO invente elementos que não existem na tela
+- NÃO submeta formulários nem clique em botões de ação durante o mapeamento
+- Retorne APENAS JSON válido, sem nenhum texto fora do JSON
+- Se a tela não tiver nenhum elemento interativo (mas carregou): retorne {{"page_failed": false, "fields": [], "buttons": []}}
+""".strip()
+
+    @staticmethod
+    def build_worker_prompt(
+        *,
+        target_url: str,
+        credentials_block: str,
+        worker_id: int,
+        batch: list[dict],
+    ) -> str:
+        fields  = [e for e in batch if e.get("element_kind") in ("input", "textarea", "select")]
+        buttons = [e for e in batch if e.get("element_kind") == "button"]
+
+        fields_block = ""
+        for i, f in enumerate(fields, 1):
+            attacks_list = "\n".join(
+                f"  {j}. [{atk['key']}] {atk['description']}"
+                for j, atk in enumerate(f.get("attacks") or [], 1)
+            )
+            fields_block += f"""
+Campo {i}: "{f.get('label', '?')}"
+  Tipo detectado: {f.get('field_type', 'generic')}
+  Como chegar: {f.get('navigation_path', 'visível na página principal')}
+  Ataques a executar (nesta ordem):
+{attacks_list}
+"""
+
+        buttons_block = ""
+        for i, b in enumerate(buttons, 1):
+            buttons_block += f"""
+Botão {i}: "{b.get('label', '?')}"
+  Como chegar: {b.get('navigation_path', 'visível na página principal')}
+  Testes:
+  1. [no_fields] Clique sem preencher os campos obrigatórios vinculados
+  2. [rapid_click] Clique múltiplas vezes consecutivamente (3-4x rapidamente)
+  3. [delete_action] Se for botão de delete/remover: execute em item existente e verifique confirmação
+"""
+
+        batch_section = ""
+        if fields_block.strip():
+            batch_section += f"CAMPOS A ATACAR:\n{'━'*50}{fields_block}"
+        if buttons_block.strip():
+            batch_section += f"\nBOTÕES A TESTAR:\n{'━'*50}{buttons_block}"
+
+        # --- Checkpoint: exact expected attacks_log entries ---
+        checkpoint_lines = []
+        total_expected = 0
+        for f in fields:
+            keys = [atk["key"] for atk in (f.get("attacks") or [])]
+            checkpoint_lines.append(
+                f'  • "{f.get("label","?")}" ({len(keys)} entradas): {", ".join(keys)}'
+            )
+            total_expected += len(keys)
+        button_keys = ["no_fields", "rapid_click", "delete_action"]
+        for b in buttons:
+            checkpoint_lines.append(
+                f'  • Botão "{b.get("label","?")}" (3 entradas): {", ".join(button_keys)}'
+            )
+            total_expected += 3
+        checkpoint_block = "\n".join(checkpoint_lines)
+
+        return f"""
+MISSÃO: STRESS TEST — WORKER {worker_id}
+
+Você é um QA de stress test. Sua missão é atacar EXATAMENTE os elementos listados abaixo. NÃO teste nenhum elemento fora deste batch.
+
+URL ALVO: {target_url}
+
+{credentials_block}
+
+╔══════════════════════════════════════════════════════╗
+║  REGRA ABSOLUTA — LEIA ANTES DE QUALQUER OUTRA COISA ║
+╚══════════════════════════════════════════════════════╝
+
+NÃO CHAME "done" AGORA. NÃO CHAME "done" AO ACHAR UM BUG.
+Você só pode chamar "done" quando o attacks_log tiver EXATAMENTE {total_expected} entradas.
+
+ENCONTRAR UM BUG NÃO ENCERRA O TESTE. JAMAIS.
+TELA BRANCA / CRASH / ERRO 500 NÃO ENCERRAM O TESTE.
+
+Quando um ataque causar bug/crash/tela branca/redirect:
+  1. Memorize o finding (título, severity, input usado, o que aconteceu)
+  2. Recarregue a URL alvo imediatamente
+  3. Faça login novamente se necessário
+  4. Execute o PRÓXIMO ataque da lista — não chame done
+  5. Repita até esgotar TODOS os ataques de TODOS os elementos
+  6. Só então chame done com o JSON completo
+
+BANNER VERMELHO "ERROS HTTP":
+Se aparecer um banner vermelho no topo da página com "ERROS HTTP: ...",
+ele contém o método HTTP, endpoint e código de status retornados pelo servidor
+naquele ataque. Use essas informações no campo error_details do finding.
+
+==================================================
+SEU BATCH (WORKER {worker_id})
+==================================================
+
+{batch_section}
+
+==================================================
+PROTOCOLO DE ATAQUE
+==================================================
+
+FASE 0 — CARREGAMENTO
+1. Navegue para a URL e aguarde até 20 segundos.
+2. Se aparecer spinner/loading, aguarde sumir antes de agir.
+3. Se necessário, use as credenciais para acessar a tela (e volte para ela após o login).
+
+FASE 1 — ATAQUE A CAMPOS
+Para cada campo do seu batch:
+1. Navegue até o campo conforme o navigation_path indicado.
+2. Execute cada ataque na ordem listada — NUNCA pule um ataque.
+3. Após cada ataque que envolve submit: aguarde a resposta (até 8s) e observe.
+4. Após completar TODOS os ataques de um campo: recarregue a URL alvo antes de começar o próximo.
+
+FASE 2 — ATAQUE A BOTÕES
+Para cada botão do seu batch: execute os 3 testes listados.
+
+SINAIS DE BUG:
+- "500", "Internal Server Error", stack trace, "Undefined" visível na tela
+- Banner vermelho "ERROS HTTP" aparece (HTTP 4xx/5xx capturado pelo monitor)
+- Campo aceita valor inválido sem nenhuma mensagem de erro
+- Spinner que não termina após 8s
+- Layout quebrado, modal travado
+- Ação silenciosa sem feedback (sucesso ou erro)
+- Campo rejeita valor claramente válido com mensagem de erro incorreta
+
+==================================================
+FORMATO DE SAÍDA
+==================================================
+
+Retorne APENAS JSON válido. IMPORTANTE: escreva "findings" ANTES de "attacks_log" no JSON.
+
+O "attacks_log" deve ter UMA ENTRADA POR ATAQUE EXECUTADO — todos os campos, todos os ataques listados.
+Para cada entrada no attacks_log:
+- "result": "ok" se não gerou bug, "bug" se gerou bug, "skipped" se não foi possível executar
+- "finding_order": número do finding correspondente (somente quando result = "bug")
+
+{{
+  "worker_id": {worker_id},
+  "findings": [
+    {{
+      "order": 1,
+      "title": "Título conciso do bug",
+      "description": "O que aconteceu e qual o impacto",
+      "severity": "critical|high|medium|low",
+      "category": "crash|security|validation|ui_error|http_error|functional|ux",
+      "element": "Nome exato do campo/botão testado",
+      "input_used": "Valor exato inserido ou ação realizada",
+      "steps_to_reproduce": [
+        "Passo 1: ...",
+        "Passo 2: ..."
+      ],
+      "error_details": "Mensagem de erro exata ou 'Nenhuma mensagem de erro foi exibida'",
+      "screenshot_index": 0
+    }}
+  ],
+  "attacks_log": [
+    {{
+      "element": "nome exato do campo ou botão (igual ao label do batch)",
+      "element_kind": "input|textarea|select|button",
+      "attack_key": "chave entre colchetes do ataque (ex: empty, sqli, no_fields)",
+      "result": "ok|bug|skipped",
+      "finding_order": null
+    }},
+    {{
+      "element": "Campo E-mail",
+      "element_kind": "input",
+      "attack_key": "sqli",
+      "result": "bug",
+      "finding_order": 1
+    }}
+  ]
+}}
+
+GUIA DE SEVERITY:
+- critical: crash, XSS executado, SQLi aceito, rota restrita acessível, tela branca/500
+- high: funcionalidade core quebrada, campo aceita dado completamente inválido sem erro
+- medium: mensagem de erro incorreta, comportamento inesperado mas recuperável
+- low: visual levemente quebrado, edge case muito improvável
+
+Se não encontrar nenhum bug: retorne "findings": [] seguido do attacks_log completo.
+
+╔══════════════════════════════════════════════════════╗
+║  CHECKPOINT — VERIFIQUE ANTES DE CHAMAR "done"       ║
+╚══════════════════════════════════════════════════════╝
+
+Antes de chamar "done", conte as entradas do seu attacks_log.
+Você precisa ter EXATAMENTE {total_expected} entradas:
+
+{checkpoint_block}
+
+TOTAL OBRIGATÓRIO: {total_expected} entradas no attacks_log
+
+Se o seu attacks_log tiver menos de {total_expected} entradas:
+→ NÃO chame "done"
+→ Identifique qual ataque está faltando
+→ Recarregue a URL alvo, faça login se necessário
+→ Execute o ataque que falta
+→ Repita até completar todas as {total_expected} entradas
+
+PROIBIDO:
+- NÃO use write_file ou escreva arquivos
+- NÃO retorne texto fora do JSON
+- NÃO invente bugs que não ocorreram
+- NÃO omita entradas do attacks_log — cada ataque listado no batch deve ter uma entrada
+- NÃO teste elementos fora do seu batch
+""".strip()
 
     @staticmethod
     def build_stress_test_prompt(*, analysis: dict, credentials_block: str) -> str:
