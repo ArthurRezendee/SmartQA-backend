@@ -1,5 +1,8 @@
 import secrets
+import logging
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -144,7 +147,10 @@ class AuthService:
         refresh_token = self._set_refresh_token(user)
         await db.commit()
 
-        send_confirmation_email.delay(user.name, user.email, code)
+        try:
+            send_confirmation_email.delay(user.name, user.email, code)
+        except Exception:
+            logger.error("Failed to enqueue confirmation email for user %s", user.id, exc_info=True)
 
         access_token = create_access_token({"sub": str(user.id)})
         return user, access_token, refresh_token
@@ -209,7 +215,10 @@ class AuthService:
         await db.commit()
 
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-        send_password_reset_email.delay(user.name, user.email, reset_url)
+        try:
+            send_password_reset_email.delay(user.name, user.email, reset_url)
+        except Exception:
+            logger.error("Failed to enqueue password reset email for user %s", user.id, exc_info=True)
 
     async def reset_password(self, db: AsyncSession, token: str, new_password: str):
         result = await db.execute(
@@ -274,7 +283,10 @@ class AuthService:
             if not user.email_verified:
                 code = self._set_verification_code(user)
                 await db.commit()
-                send_confirmation_email.delay(user.name, user.email, code)
+                try:
+                    send_confirmation_email.delay(user.name, user.email, code)
+                except Exception:
+                    logger.error("Failed to enqueue confirmation email for user %s", user.id, exc_info=True)
         else:
             user = User(
                 name=name,
@@ -294,7 +306,10 @@ class AuthService:
             code = self._set_verification_code(user)
             await db.commit()
 
-            send_confirmation_email.delay(user.name, user.email, code)
+            try:
+                send_confirmation_email.delay(user.name, user.email, code)
+            except Exception:
+                logger.error("Failed to enqueue confirmation email for user %s", user.id, exc_info=True)
 
         refresh_token = self._set_refresh_token(user)
         await db.commit()
